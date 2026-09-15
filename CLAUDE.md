@@ -208,3 +208,13 @@ orders/{id}/branchId + branchName   الفرع وقت الطلب (فلتر ال�
 `firebase deploy --only hosting`. أي تعديل في `firebase-rules.json` يفضل محلي ومش شغّال
 على القاعدة لحد ما تعمل `firebase deploy --only database --project mahbaz-12e0c`.
 (في 2026-09-15 اتلقى توسيع لصلاحية الكتابة على `assets` قاعد بلا نشر — ونُشر وقتها.)
+
+## الموقع منشور على أكتر من مكان — ممنوع المسارات المطلقة (2026-09-15)
+`mahbaz-12e0c.web.app/` (فايربيز) + `selahelazhary.github.io/backer/` (GitHub Pages، ريبو
+`selahelazhary/backer` = نفس المشروع) + دومين مستقل بعدين.
+- **`siteUrl()` في `js/assets.js`** بتحسب جذر الموقع من `location.pathname` (بتشيل `/dashboard`)
+  وبتحل عليه أي مسار مخزّن في القاعدة. `imgSrc()` وخلفية الرئيسية بيعدّوا عليها.
+- القاعدة: **لا مسار يبدأ بـ `/`** (بيكسر المجلد الفرعي) **ولا مسار نسبي خام** (بيكسر اللوحة
+  تحت `/dashboard/`). أي مسار جديد جاي من القاعدة يعدّي على `siteUrl()`.
+- ملفات المشروع نفسها (index.html، المانيفست، تسجيل sw) كلها نسبية بـ `./` — سيبها كده.
+- `p/` و`dist/` في `.gitignore` ⇒ GitHub Pages بيخدم **المصدر** لا مخرجات `seo/strip.js`.
