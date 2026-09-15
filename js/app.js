@@ -504,7 +504,7 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
     return `
       <div class="ex-eg-product-card ex-eg-reveal" style="--i:${index % 10}" data-product="${p.id}">
         <div class="ex-eg-img-wrap">
-          <img ${imgSrc(img)} alt="${t(p.name)}" style="${fitStyle(p.imageFit)}" loading="lazy" data-imgload>
+          <img ${imgSrc(img)} alt="${t(p.name)}" style="${fitStyle(p.imageFit)}" ${index < 6 ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'} decoding="async" data-imgload>
           ${badge}
           ${showTapHint ? `<div class="ex-eg-tap-details">${ICONS.tap}<span>${state.lang === 'ar' ? 'اضغط للتفاصيل' : 'Tap for details'}</span></div>` : ''}
         </div>
@@ -540,7 +540,10 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
     let qty = 1;
     const overlay = openOverlay(`
       <div class="ex-eg-modal-sheet">
-        <div class="ex-eg-close-row"><button class="ex-eg-icon-btn ex-eg-ghost close-modal">${ICONS.close}</button></div>
+        <div class="ex-eg-close-row">
+          <button class="ex-eg-icon-btn ex-eg-ghost" id="share-product" title="${state.lang === 'ar' ? 'شارك المنتج' : 'Share'}" aria-label="${state.lang === 'ar' ? 'شارك المنتج' : 'Share'}">${ICONS.share}</button>
+          <button class="ex-eg-icon-btn ex-eg-ghost close-modal">${ICONS.close}</button>
+        </div>
         <div class="ex-eg-modal-img"><img ${imgSrc(img)} alt="${t(p.name)}" style="${fitStyle(p.imageFit)}" data-imgload></div>
         <div class="ex-eg-modal-body">
           <h2>${newTag(p)}${t(p.name)}</h2>
@@ -574,6 +577,7 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
       </div>
     `);
     overlay.querySelector('.close-modal').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#share-product').addEventListener('click', () => shareProduct(p));
     wireRatingWidget(overlay, p);
     overlay.querySelectorAll('.ex-eg-variant-chip').forEach(chip => {
       chip.addEventListener('click', () => {
@@ -600,6 +604,25 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
       flashCartAdded();
       toast(state.lang === 'ar' ? 'اتضاف للعربة' : 'Added to cart', ICONS.cart);
     });
+  }
+
+  /* مشاركة المنتج: اللينك بيفتح المنتج على طول (`?product=` متعامل معاه وقت الإقلاع).
+     بنستعمل شيت المشاركة بتاع الجهاز لو موجود، وإلا بننسخ اللينك. */
+  async function shareProduct(p) {
+    const url = `${location.origin}${location.pathname}?product=${p.id}`;
+    const ar = state.lang === 'ar';
+    const title = `${t(p.name)} — ${DATA.name || 'Daily Bake'}`;
+    if (navigator.share) {
+      try { await navigator.share({ title, text: title, url }); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }   // المستخدم قفل الشيت
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      toast(ar ? 'اتنسخ لينك المنتج' : 'Product link copied', ICONS.share);
+    } catch (e) {
+      /* المتصفحات القديمة (أو بدون https) مابتسمحش بالنسخة — نوري اللينك للمستخدم */
+      window.prompt(ar ? 'انسخ اللينك:' : 'Copy the link:', url);
+    }
   }
 
   function flashCartAdded() {
