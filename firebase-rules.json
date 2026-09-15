@@ -328,7 +328,7 @@
     "assets": {
       ".read": true,
       "$id": {
-        ".write": "(auth != null && root.child('admins').child(auth.uid).child('role').val() === 'owner' || (auth != null && root.child('admins').child(auth.uid).child('permissions').child('menu').val() === true)) || (auth != null && root.child('admins').child(auth.uid).child('role').val() === 'owner' || (auth != null && root.child('admins').child(auth.uid).child('permissions').child('branches').val() === true)) || auth != null && root.child('admins').child(auth.uid).child('role').val() === 'owner'",
+        ".write": "auth != null && (root.child('admins').child(auth.uid).child('role').val() === 'owner' || root.child('admins').child(auth.uid).child('permissions').child('menu').val() === true || root.child('admins').child(auth.uid).child('permissions').child('branches').val() === true || root.child('admins').child(auth.uid).child('permissions').child('settings').val() === true || root.child('admins').child(auth.uid).child('permissions').child('settings_identity').val() === true || root.child('admins').child(auth.uid).child('permissions').child('settings_banners').val() === true)",
         ".validate": "$id.matches(/^[0-9a-f]{8,40}$/) && (!newData.exists() || (newData.isString() && newData.val().length <= 900000 && newData.val().matches(/^data:image\\//)))"
       }
     }

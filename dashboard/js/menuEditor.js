@@ -40,7 +40,11 @@ function guardSave(btn, label, fn) {
     .then(fn)
     .catch((e) => {
       const msg = (e && e.message) || '';
-      toast(/permission|PERMISSION/i.test(msg) ? 'مفيش صلاحية للحفظ' : 'الحفظ ما تمّش — ' + (msg.slice(0, 60) || 'حاول تاني'), 'error');
+      /* فايربيز بيرد PERMISSION_DENIED على رفض الصلاحية **ورفض الـ validate**
+         (زي صورة أكبر من الحد) — فمانقولش "مفيش صلاحية" وخلاص. */
+      toast(/permission|PERMISSION/i.test(msg)
+        ? 'الحفظ اترفض — غالباً الصورة كبيرة أو حسابك مش له صلاحية على القسم ده'
+        : 'الحفظ ما تمّش — ' + (msg.slice(0, 80) || 'حاول تاني'), 'error');
     })
     .finally(() => {
       if (!btn.isConnected) return;   // النافذة اتقفلت بعد نجاح الحفظ
@@ -53,7 +57,7 @@ function guardSave(btn, label, fn) {
 async function saveMenu() {
   (menu.categories || []).forEach((c, i) => { if (c && c.id == null) c.id = Date.now() + i; });
   try { await set(ref(db, 'menu/categories'), menu.categories || []); }
-  catch (e) { toast('مفيش صلاحية للحفظ — راجع صلاحيات حسابك', 'error'); throw e; }
+  catch (e) { toast('الحفظ اترفض — راجع صلاحيات حسابك أو حجم الصور', 'error'); throw e; }
 }
 
 export async function renderMenuEditor(container) {
@@ -68,7 +72,7 @@ export async function renderMenuEditor(container) {
 
   function paint() {
     container.innerHTML = `
-      <div class="ex-eg-row-2" style="align-items:flex-start;">
+      <div class="ex-eg-row-2 ex-eg-menu-editor-row" style="align-items:flex-start;">
         <div class="ex-eg-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
             <h3 style="margin:0;font-size:14px;">الأقسام</h3>

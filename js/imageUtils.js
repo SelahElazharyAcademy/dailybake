@@ -12,47 +12,89 @@ export function toDirectImageUrl(url) {
     || (u.includes('drive.google.com') ? u.match(/[?&]id=([^&]+)/) : null);
   if (m) return `https://lh3.googleusercontent.com/d/${m[1]}`;
 
+  /* دروب بوكس: لينك المشاركة بيفتح صفحة HTML مش الصورة — raw=1 بيدي الملف نفسه */
+  if (u.includes('dropbox.com')) return u.replace(/[?&]dl=\d/, '').replace(/\?.*$/, '') + '?raw=1';
+
   return u;
 }
 
 /* Shrinks a picked image in the browser so it can be stored inline — no cloud
    storage, no API keys, nothing to configure. */
-/* ضغط صورة لحد حجم معيّن.
-   تحذير مهم: `canvas.toDataURL('image/png', q)` **بيتجاهل الجودة تماماً** —
-   PNG بلا فقد. فسكرين التحويل الجاي من الموبايل (PNG) كان بيطلع أكبر من الحد
-   اللي القاعدة بتقبله، فالكتابة بترفض والصورة تضيع.
-   عشان كده: لما يبقى في حد أقصى بنطلع JPEG وبنصغّر تدريجياً لحد ما ندخل فيه. */
-export async function compressImage(file, { maxSide = 700, quality = 0.72, maxBytes = 0, forceJpeg = false } = {}) {
-  const bitmap = await createImageBitmap(file);
-  const wantAlpha = !forceJpeg && !maxBytes && (file.type === 'image/png' || file.type === 'image/webp');
 
-  const render = (side, q, alpha) => {
-    const scale = Math.min(1, side / Math.max(bitmap.width, bitmap.height));
+/* سقف حجم الصورة المخزّنة.
+   قاعدة `assets/$id` في firebase-rules.json بترفض أي نص أطول من 900,000 حرف،
+   وفايربيز بيرد على رفض الـ validate بنفس كود PERMISSION_DENIED — فالمستخدم
+   كان بيشوف "مفيش صلاحية للحفظ" والمشكلة حجم مش صلاحيات.
+   بنشتغل تحت الحد بهامش أمان. */
+export const MAX_IMAGE_CHARS = 760000;
+
+/* WebP بيدعم الشفافية زي PNG لكن بضغط مفقود — يعني عُشر الحجم تقريباً.
+   بنسأل الكانفس نفسه بدل ما نفترض، وبنخزّن الإجابة. */
+let webpOk = null;
+function supportsWebp() {
+  if (webpOk === null) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 1;
+    try { webpOk = c.toDataURL('image/webp').startsWith('data:image/webp'); }
+    catch (e) { webpOk = false; }
+  }
+  return webpOk;
+}
+
+/* المحرّك المشترك: بيرسم المصدر على كانفس ويصغّر الجودة ثم المقاس
+   لحد ما الناتج يدخل في الميزانية.
+   تحذير مهم: `canvas.toDataURL('image/png', q)` **بيتجاهل الجودة تماماً** —
+   PNG بلا فقد، فمستحيل نوصل لميزانية بيه. لو المتصفح مابيعرفش يكتب WebP
+   بنضطر نسطّح الشفافية على أبيض ونطلع JPEG — أحسن من إن الصورة تضيع. */
+function encodeWithin(source, { maxSide, quality, maxBytes, keepAlpha }) {
+  const sw = source.width, sh = source.height;
+  const alphaType = supportsWebp() ? 'image/webp' : 'image/png';
+  let type = keepAlpha ? alphaType : (supportsWebp() ? 'image/webp' : 'image/jpeg');
+
+  const render = (side, q) => {
+    const scale = Math.min(1, side / Math.max(sw, sh));
     const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.width = Math.max(1, Math.round(sw * scale));
+    canvas.height = Math.max(1, Math.round(sh * scale));
     const ctx = canvas.getContext('2d');
-    if (!alpha) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL(alpha ? 'image/png' : 'image/jpeg', q);
+    if (type === 'image/jpeg') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL(type, q);
   };
 
   let side = maxSide, q = quality;
-  let out = render(side, q, wantAlpha);
-
-  /* لسه أكبر من المسموح؟ نقلّل الجودة الأول وبعدين المقاس */
-  if (maxBytes) {
-    let guard = 0;
-    while (out.length > maxBytes && guard++ < 12) {
-      if (q > 0.4) q = Math.max(0.35, q - 0.12);
-      else side = Math.max(320, Math.round(side * 0.8));
-      out = render(side, q, false);
-      if (q <= 0.35 && side <= 320) break;
-    }
+  let out = render(side, q);
+  let guard = 0;
+  while (out.length > maxBytes && guard++ < 16) {
+    if (type === 'image/png') { type = 'image/jpeg'; }   // PNG مايستجيبش للجودة — نسطّح
+    else if (q > 0.45) q = Math.max(0.4, q - 0.12);
+    else side = Math.max(300, Math.round(side * 0.82));
+    out = render(side, q);
+    if (q <= 0.4 && side <= 300) break;
   }
+  return out;
+}
 
+/* ضغط صورة مختارة من الجهاز لحد الميزانية (بالافتراض سقف القاعدة). */
+export async function compressImage(file, { maxSide = 900, quality = 0.82, maxBytes = MAX_IMAGE_CHARS, forceJpeg = false } = {}) {
+  const bitmap = await createImageBitmap(file);
+  const keepAlpha = !forceJpeg && (file.type === 'image/png' || file.type === 'image/webp');
+  const out = encodeWithin(bitmap, { maxSide, quality, maxBytes, keepAlpha });
   if (bitmap.close) bitmap.close();
   return out;
+}
+
+/* نفس المعالجة لكن لـ data URL جاهز (ناتج إزالة الخلفية مثلاً — بيطلع PNG ضخم). */
+export async function fitDataUrl(dataUrl, { maxSide = 900, quality = 0.82, maxBytes = MAX_IMAGE_CHARS } = {}) {
+  if (!dataUrl || !dataUrl.startsWith('data:') || dataUrl.length <= maxBytes) return dataUrl;
+  const img = new Image();
+  img.decoding = 'sync';
+  await new Promise((res, rej) => {
+    img.onload = res;
+    img.onerror = () => rej(new Error('تعذر قراءة الصورة'));
+    img.src = dataUrl;
+  });
+  return encodeWithin(img, { maxSide, quality, maxBytes, keepAlpha: true });
 }
 
 export function dataUrlSizeKb(dataUrl) {
@@ -61,14 +103,6 @@ export function dataUrlSizeKb(dataUrl) {
 }
 
 const ICON_UP = '<svg viewBox="0 0 24 24" fill="none" style="width:15px;height:15px"><path d="M12 16V4m0 0 4.5 4.5M12 4 7.5 8.5M5 16v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-
-/* When the local worker is running with Drive enabled, hand the picture to it and
-   get a permanent Drive link back instead of keeping the image in the database. */
-async function offloadToDrive(dataUrl, name) {
-  /* لا يوجد عامل خلفي لمعالجة uploads في المشروع حالياً، لذلك لا نرسل الصورة
-     إلى عقدة ستظل pending. سيُستخدم data URL المضغوط كحل محلي موثوق. */
-  return null;
-}
 
 /* ---------- Shared image field ----------
    One button to upload from the device, or paste a link. An optional switch
@@ -123,10 +157,15 @@ export function imageFieldTemplate(id, currentUrl, label = 'الصورة', fit =
         </div>
         <div class="ex-eg-img-fit-hint">اسحب الصورة بالماوس لتحريكها داخل الإطار</div>
       </div>
-      <details class="ex-eg-img-link-details">
-        <summary>أو استخدم لينك صورة</summary>
-        <input class="ex-eg-img-link-input" id="${id}" placeholder="https://..." value="${esc(inline ? '' : (currentUrl || ''))}">
-      </details>
+      <div class="ex-eg-img-link-details">
+        <label for="${id}">أو أضف صورة عبر رابط</label>
+        <div class="ex-eg-img-link-row">
+          <input class="ex-eg-img-link-input" id="${id}" dir="ltr" placeholder="https://..." value="${esc(inline ? '' : (currentUrl || ''))}">
+          <button type="button" class="ex-eg-btn ex-eg-sm ex-eg-ghost" id="${id}-link-check">تحقق</button>
+        </div>
+        <div class="ex-eg-img-link-status" id="${id}-link-status"></div>
+        <div class="ex-eg-img-fit-hint">الصورة بتفضل متخزّنة على الموقع اللي جاية منه — لو الرابط وقع الصورة هتختفي. روابط جوجل درايف ودروب بوكس بتتحوّل لرابط مباشر تلقائياً.</div>
+      </div>
     </div>
   `;
 }
@@ -228,11 +267,42 @@ export function wireImageField(root, id) {
     file.click();
   });
 
+  /* ---- صورة عبر رابط ----
+     بنجرّب نحمّل الرابط فعلاً ونقول للمستخدم شغال ولا لأ، بدل ما يحفظ
+     رابط مكسور ويكتشف إن المنتج بلا صورة بعدين. */
+  const linkStatus = root.querySelector(`#${id}-link-status`);
+  const setLinkStatus = (text, kind) => {
+    if (!linkStatus) return;
+    linkStatus.textContent = text;
+    linkStatus.className = 'ex-eg-img-link-status' + (kind ? ' is-' + kind : '');
+  };
+
+  const checkLink = () => {
+    const raw = linkInput.value.trim();
+    if (!raw) { setLinkStatus(''); show(''); return; }
+    const url = toDirectImageUrl(raw);
+    if (!/^https?:\/\//i.test(url)) { setLinkStatus('الرابط لازم يبدأ بـ https://', 'bad'); return; }
+    setLinkStatus('بنتأكد من الرابط...');
+    const probe = new Image();
+    probe.onload = () => {
+      show(url);
+      setLinkStatus(`الرابط شغال ✓ (${probe.naturalWidth}×${probe.naturalHeight})`, 'ok');
+    };
+    probe.onerror = () => setLinkStatus('الرابط مش بيفتح صورة — اتأكد إنه رابط مباشر للصورة ومتاح للعامة', 'bad');
+    probe.src = url;
+  };
+
+  let linkTimer = null;
   linkInput.addEventListener('input', () => {
     delete wrapper.dataset.inline;
     status.textContent = '';
     show(toDirectImageUrl(linkInput.value.trim()));
+    clearTimeout(linkTimer);
+    linkTimer = setTimeout(checkLink, 600);
   });
+  const checkBtn = root.querySelector(`#${id}-link-check`);
+  if (checkBtn) checkBtn.addEventListener('click', checkLink);
+  linkInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); checkLink(); } });
 
   file.addEventListener('change', async () => {
     const f = file.files[0];
@@ -262,19 +332,13 @@ export function wireImageField(root, id) {
         status.textContent = 'جاري تجهيز الصورة...';
         dataUrl = await compressImage(f);
       }
+      /* إزالة الخلفية بتطلع PNG بالحجم الأصلي — لازم يعدّي على نفس الميزانية
+         وإلا القاعدة ترفض الحفظ وتقول "مفيش صلاحية" */
+      dataUrl = await fitDataUrl(dataUrl);
       show(dataUrl);
-      status.textContent = 'جاري الرفع على Drive...';
-      const driveUrl = await offloadToDrive(dataUrl, f.name || `img-${Date.now()}.png`);
-      if (driveUrl) {
-        delete wrapper.dataset.inline;
-        linkInput.value = driveUrl;
-        show(driveUrl);
-        status.textContent = 'اترفعت على Drive ✓';
-      } else {
-        wrapper.dataset.inline = dataUrl;
-        linkInput.value = '';
-        status.textContent = `تم ✓ (${dataUrlSizeKb(dataUrl)} ك.ب)`;
-      }
+      wrapper.dataset.inline = dataUrl;
+      linkInput.value = '';
+      status.textContent = `تم ✓ (${dataUrlSizeKb(dataUrl)} ك.ب)`;
     } catch (e) {
       status.textContent = e && e.message ? e.message : 'تعذر تجهيز الصورة — اتأكد من الإنترنت وجرب صورة تانية';
     }

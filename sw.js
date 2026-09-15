@@ -1,6 +1,6 @@
 /* Daily Bake service worker — offline shell, Web Push delivery, notification clicks.
    Push payloads are sent by the Python worker using VAPID (no FCM). */
-const CACHE = 'dailybake-shell-v39';
+const CACHE = 'dailybake-shell-v40';
 /* ملاحظة: Hosting شغّال عليه cleanUrls، يعني /index.html بيتحوّل لـ / —
    فبنخزّن الجذر './' بس عشان مانخزّنش رد فيه تحويل. */
 const SHELL = [
@@ -47,8 +47,12 @@ self.addEventListener('fetch', (e) => {
 
   e.respondWith(
     fetch(e.request, { cache: 'no-store' }).then(res => {
-      const copy = res.clone();
-      caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
+      /* الردود الفاشلة مابتتخزّنش: صورة اتطلبت قبل ما تتنشر كانت بترجع 404
+         ويتخزّن الـ404 فتفضل الصورة مكسورة حتى بعد ما تتنشر فعلاً. */
+      if (res.ok) {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
+      }
       return res;
     }).catch(() => caches.match(e.request).then(r => {
       // never answer a script/style/image request with the HTML shell — it breaks the app
