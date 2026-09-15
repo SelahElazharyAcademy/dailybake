@@ -5,7 +5,7 @@ import { activeDiscount, discountedPrice, discountBadge, fmtDateShort } from './
 import { fitStyle, toDirectImageUrl } from './imageUtils.js';
 import { esc, safeUrl, safeTel } from './escape.js';
 import { DEFAULT_FEATURES, DEFAULT_FEEDBACK_FORM, EGYPT_GOVERNORATES } from './defaults.js';
-import { imgSrc, wireAssets, preloadAssets } from './assets.js';
+import { imgSrc, wireAssets, preloadAssets, siteUrl } from './assets.js';
 import { isSubscribed, startFeed, onFeedChange, getUnreadCount, openInbox, subscribeCardHtml, wireSubscribeCard, setupPwa, refreshPushToken } from './notify.js';
 import { openOrderTracking } from './cart.js';
 import { setupCookieConsent, openCookiePolicy } from './cookies.js';
@@ -221,7 +221,7 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
     /* خلفية الصفحة الرئيسية بتتحدد من الداش بورد. لو الخلفية نفسها فيها اللوجو
        بنخفي لوجو الصفحة عشان ميتكررش. */
     const bgRaw = DATA.homeBackground || DATA.homeBg || '';
-    const bg = safeUrl(toDirectImageUrl(bgRaw));
+    const bg = safeUrl(siteUrl(toDirectImageUrl(bgRaw)));
     /* الخلفية ممكن تبقى فيديو أو صورة:
        - فيديو (mp4/webm) بيتعرض كـ <video> بيلفّ لوحده.
        - صورة عادية بتتعرض كطبقة ورا المحتوى، وبتتحرك حركة بطيئة
@@ -239,7 +239,7 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
         ${showVideo ? `<video class="ex-eg-home-video" autoplay muted loop playsinline preload="auto" poster="${poster}" aria-hidden="true" tabindex="-1"><source src="${bg}" type="video/${/\.webm/i.test(bgRaw) ? 'webm' : 'mp4'}"></video>` : ''}
         ${animateImage ? `
         <div class="ex-eg-home-bg" aria-hidden="true">
-          <div class="ex-eg-bg-base" style="background-image:url('${safeUrl(DATA.homeBackgroundBase || 'assets/home-bg-base.webp')}')"></div>
+          <div class="ex-eg-bg-base" style="background-image:url('${safeUrl(siteUrl(DATA.homeBackgroundBase || 'assets/home-bg-base.webp'))}')"></div>
           <div class="ex-eg-bg-left" style="background-image:url('${bg}')"></div>
           <div class="ex-eg-bg-right" style="background-image:url('${bg}')"></div>
         </div>` : ''}

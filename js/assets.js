@@ -19,6 +19,21 @@ const INFLIGHT = new Map();  // id -> Promise
 /* بكسل شفاف — بيشغل مكان الصورة لحد ما تتحمّل فمفيش قفزة في التخطيط */
 export const BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
+/* الموقع مش دايماً على جذر النطاق: GitHub Pages بينشره تحت `/backer/`،
+   واللوحة شغالة تحت `/dashboard/`. فالمسار المخزّن في القاعدة (`assets/x.webp`
+   أو `/assets/x.webp`) لازم يتحل على **جذر الموقع** — لا على مسار الصفحة
+   الحالية (يبقى /dashboard/assets/…) ولا على جذر النطاق (يبقى /assets/… بره /backer/). */
+const SITE_BASE = new URL(
+  location.pathname.replace(/\/dashboard(\/.*)?$/, '/').replace(/[^/]*$/, ''),
+  location.origin
+).href;
+
+export function siteUrl(v) {
+  const s = String(v == null ? '' : v);
+  if (!s || /^(https?:|data:|blob:)/i.test(s)) return s;
+  try { return new URL(s.replace(/^\/+/, ''), SITE_BASE).href; } catch (e) { return s; }
+}
+
 export function isAssetRef(v) { return typeof v === 'string' && v.startsWith(PREFIX); }
 export function assetId(v) { return String(v).slice(PREFIX.length); }
 
@@ -70,7 +85,7 @@ export async function getAsset(id) {
    - إشارة a:id → بكسل فاضي + data-asset عشان يتحمّل وقت ما يقرب من الشاشة */
 export function imgSrc(value, fallback = '') {
   if (isAssetRef(value)) return `src="${BLANK}" data-asset="${assetId(value).replace(/[^A-Za-z0-9_-]/g, '')}"`;
-  const v = value || fallback || '';
+  const v = siteUrl(value || fallback || '');
   return v ? `src="${String(v).replace(/"/g, '&quot;')}"` : `src="${BLANK}"`;
 }
 
