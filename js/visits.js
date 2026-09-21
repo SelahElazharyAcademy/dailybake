@@ -29,8 +29,8 @@ function dayKey(d = new Date()) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-/* بنسيب علامة النهارده وبنشيل أي علامة أقدم */
-function markedToday() {
+/* اتعدّت النهارده على الجهاز ده؟ (وبنشيل علامات الأيام اللي فاتت) */
+function countedToday() {
   const key = PREFIX + dayKey();
   try {
     if (localStorage.getItem(key)) return true;
@@ -38,24 +38,40 @@ function markedToday() {
       const k = localStorage.key(i);
       if (k && k.startsWith(PREFIX) && k !== key) localStorage.removeItem(k);
     }
-    localStorage.setItem(key, '1');
     return false;
   } catch (e) {
-    /* تصفّح خاص أو تخزين مقفول — نعدّ الزيارة ونكمّل */
+    /* تصفّح خاص أو تخزين مقفول — نعدّ ونكمّل */
     return false;
   }
 }
 
+function markToday() {
+  try { localStorage.setItem(PREFIX + dayKey(), '1'); } catch (e) { /* لا شيء */ }
+}
+
 /* بتتنادى مرة واحدة عند إقلاع صفحة العميل.
    بتفشل في صمت: عدّاد إحصائي عمره ما يعطّل الموقع لو القواعد مارفعتش
-   أو النت وقع. */
+   أو النت وقع.
+
+   ترتيب مقصود: **العلامة بتتحط بعد ما الكتابة تنجح**، مش قبلها. لو حطيناها
+   الأول وفشلت الكتابة (قواعد لسه مانشرتش، نت وقع) الزيارة كانت بتضيع
+   والجهاز مش هيحاول تاني النهارده خالص.
+   وعشان مانعيدش المحاولة مع كل فتحة صفحة في نفس الجلسة، فيه علامة جلسة
+   منفصلة — يعني محاولة واحدة بالكتير في الجلسة. */
+const SESSION_FLAG = 'db_visit_tried';
+
 export function countVisit() {
-  if (markedToday()) return;
+  if (countedToday()) return;
+  try {
+    if (sessionStorage.getItem(SESSION_FLAG)) return;
+    sessionStorage.setItem(SESSION_FLAG, '1');
+  } catch (e) { /* لا شيء */ }
+
   /* تحديث واحد للاتنين مع بعض — طلب شبكة واحد بدل اتنين */
   update(ref(db), {
     'visits/total': increment(1),
     [`visits/days/${dayKey()}`]: increment(1),
-  }).catch(() => { /* مش مشكلة */ });
+  }).then(markToday).catch(() => { /* هنحاول تاني في جلسة جاية */ });
 }
 
 /* بتلخّص عقدة visits لأرقام جاهزة للعرض في اللوحة */
