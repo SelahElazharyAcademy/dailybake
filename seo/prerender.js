@@ -19,7 +19,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const DB = 'https://mahbaz-12e0c-default-rtdb.firebaseio.com';
+const DB = 'https://daily-bake-default-rtdb.firebaseio.com';   // القاعدة اتنقلت لحساب المحل؛ الاستضافة لأ
 const SITE = 'https://mahbaz-12e0c.web.app';
 
 const MARK_START = '<!-- SEO:START -->';

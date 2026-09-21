@@ -1,6 +1,6 @@
 /* Daily Bake service worker — offline shell, Web Push delivery, notification clicks.
    Push payloads are sent by the Python worker using VAPID (no FCM). */
-const CACHE = 'dailybake-shell-v47';
+const CACHE = 'dailybake-shell-v48';
 /* ملاحظة: Hosting شغّال عليه cleanUrls، يعني /index.html بيتحوّل لـ / —
    فبنخزّن الجذر './' بس عشان مانخزّنش رد فيه تحويل. */
 const SHELL = [

@@ -16,7 +16,7 @@ admin.initializeApp();
 setGlobalOptions({ region: 'europe-west1', maxInstances: 10 });
 
 const db = () => admin.database();
-const INSTANCE = 'mahbaz-12e0c-default-rtdb';
+const INSTANCE = 'daily-bake-default-rtdb';
 
 /* ---------------- helpers ---------------- */
 const STATUS_AR = { preparing: 'بدأنا نجهز طلبك 🥐', ready: 'طلبك جاهز ✅', completed: 'تم تسليم طلبك — بالهنا والشفا 🧡', cancelled: 'تم إلغاء طلبك ❌' };
