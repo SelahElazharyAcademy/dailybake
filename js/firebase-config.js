@@ -8,14 +8,13 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDiPGPUYEB57L_nQNQUqZnmZQIDmR5aBS4",
-  authDomain: "mahbaz-12e0c.firebaseapp.com",
-  databaseURL: "https://mahbaz-12e0c-default-rtdb.firebaseio.com",
-  projectId: "mahbaz-12e0c",
-  storageBucket: "mahbaz-12e0c.firebasestorage.app",
-  messagingSenderId: "210851853546",
-  appId: "1:210851853546:web:54f3bb48d5cdd0943ed393",
-  measurementId: "G-5LXDLK835N",
+  apiKey: "AIzaSyBrW3PkpatdRLtic0xysPJvRIn7B0OT9Kc",
+  authDomain: "daily-bake.firebaseapp.com",
+  databaseURL: "https://daily-bake-default-rtdb.firebaseio.com",
+  projectId: "daily-bake",
+  storageBucket: "daily-bake.firebasestorage.app",
+  messagingSenderId: "74549557750",
+  appId: "1:74549557750:web:48d115bbd41a85dd9a2fd7",
 };
 
 export const app = initializeApp(firebaseConfig);
