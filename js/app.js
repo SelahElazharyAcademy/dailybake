@@ -9,6 +9,7 @@ import { imgSrc, wireAssets, preloadAssets, siteUrl } from './assets.js';
 import { isSubscribed, startFeed, onFeedChange, getUnreadCount, openInbox, subscribeCardHtml, wireSubscribeCard, setupPwa, refreshPushToken } from './notify.js';
 import { openOrderTracking } from './cart.js';
 import { setupCookieConsent, openCookiePolicy } from './cookies.js';
+import { countVisit } from './visits.js';
 import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.js';
 
 (function () {
@@ -186,6 +187,8 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
     document.documentElement.dir = state.lang === 'ar' ? 'rtl' : 'ltr';
 
     const html = state.page === 'home' ? renderHome() : renderMenu();
+    /* المسافة السفلية بتتحط بس لما الشريط يكون موجود فعلاً */
+    app.classList.toggle('ex-eg-with-nav', state.page !== 'home');
 
     /* render() بتتنادى كذا مرة وقت التحميل (البيانات، التقييمات، المزايا،
        تحديثات المنيو اللحظية). لو النتيجة هي هي مافيش داعي نعيد بناء الصفحة —
@@ -200,6 +203,7 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
       lastPage = state.page;
       app.classList.remove('ex-eg-page-enter'); void app.offsetWidth; app.classList.add('ex-eg-page-enter');
     }
+    if (state.page === 'home') markHomeIntro();
     bindGlobalEvents();
     wireImageLoaders(app);
     wireAssets(app);
@@ -211,6 +215,48 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
       startCarousel();
     }
   }
+
+  /* دخول الصفحة الرئيسية (تركيب اللوجو + وصول الأزرار) بيتفرّج عليه مرة واحدة،
+     وبيبدأ في الوقت الصح.
+     مشكلتين كانوا بيضيّعوه:
+     ١) شاشة البداية (#splash) بتغطي الصفحة لحد ما البيانات توصل — فالأنميشن
+        كان بيخلص ورا الستارة والزائر يلاقي اللوجو جاهز. عشان كده الأنميشن
+        بيبدأ **متوقّف** (`animation-play-state:paused` في الـCSS) وبيشتغل
+        أول ما السبلاش تروح.
+     ٢) `render()` بتتنادى تاني أول ما بيانات فايربيز توصل والـHTML بيتغيّر،
+        فالمتصفح بيعيد تشغيل كل أنميشن من الأول — يعني اللوجو يتركّب مرتين.
+        بعد ما اللحظة تخلص بنحط كلاس بيوقّف أنميشن الدخول خالص.
+     شبكة أمان: لو السبلاش ماراحتش لأي سبب، مؤقّت بيشغّل اللحظة على أي حال
+     بعد ٣ ثواني — عشان الصفحة عمرها ما تفضل مخفية بسبب أنميشن واقف. */
+  let splashCleared = false;
+  let homeIntroPlayed = false;
+
+  /* بتشغّل لحظة الدخول — **مرة واحدة في عمر الجلسة ومش أكتر**.
+     الشرط ده مش تفصيلة: `render()` بتتنادى تاني أول ما بيانات فايربيز توصل،
+     والـHTML بيتغيّر فالمتصفح بيبني عناصر جديدة وبيشغّل أنميشنها من الأول.
+     من غير القفل ده اللوجو كان بيتركّب مرتين قدام الزائر.
+     بعد ما تشتغل مرة، أي إعادة بناء بتطلع من غير الكلاس — يعني ثابتة
+     على شكلها النهائي على طول.
+
+     ولو الصفحة لسه مش مبنية وقت ما الستارة تروح، بنكتفي بتسجيل إن الستارة
+     راحت و`markHomeIntro` بتكمّل أول ما البناء يحصل. */
+  function startHomeIntro() {
+    splashCleared = true;
+    if (homeIntroPlayed) return;
+    const home = app.querySelector('.ex-eg-home');
+    if (!home) return;
+    home.classList.add('ex-eg-intro-go');
+    homeIntroPlayed = true;
+  }
+
+  /* بتتنادى بعد كل بناء للصفحة الرئيسية */
+  function markHomeIntro() {
+    if (homeIntroPlayed) return;
+    if (splashCleared || !document.getElementById('splash')) startHomeIntro();
+  }
+
+  /* شبكة أمان: لو شاشة البداية ماراحتش لأي سبب، اعتبرها راحت بعد ٣ ثواني */
+  setTimeout(startHomeIntro, 3000);
 
   function renderHome() {
     const T = state.lang === 'ar'
@@ -249,7 +295,7 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
         </div>
         ${bgHasLogo ? '' : `
         <div class="ex-eg-logo-wrap">
-            <img ${imgSrc(DATA.logo, 'assets/logo.png?v=2')} alt="${t(DATA.name, DATA.name)}">
+          <div class="ex-eg-logo-assemble">${logoParts(t(DATA.name, DATA.name))}</div>
           ${DATA.isRestaurantNameDisplayedOnHomePage ? `<div class="ex-eg-restaurant-name">${t(DATA.name, DATA.name)}</div>` : ''}
         </div>`}
         <button class="ex-eg-main-menu-btn ex-eg-pressable" id="go-menu">${T.menu}</button>
@@ -268,6 +314,73 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
         ` : ''}
       </div>
     `;
+  }
+
+  /* اللوجو بيتركّب من عناصره الحقيقية.
+     الأول جرّبنا نقص الصورة الواحدة بـ clip-path — الشكل كان بيتحرّك كمستطيلات
+     وحوافها المستقيمة بتبان أثناء الحركة. دلوقتي فيه أربع طبقات PNG شفافة
+     متولّدة من اللوجو نفسه بتحليل المكوّنات المتصلة (tools/logo-layers.py):
+
+       assets/logo-word.png   كلمة DAILY BAKE
+       assets/logo-sub.png    سطر PARIS MORNING
+       assets/logo-left.png   فرع القمح الشمال
+       assets/logo-right.png  فرع القمح اليمين
+
+     كل طبقة بنفس مقاس اللوحة (320×250) فبتتركّب فوق بعض بلا أي إزاحة،
+     ومجموع الأربعة **مطابق للأصل بكسل بكسل** (متحقَّق منه وقت التوليد).
+     الإجمالي ١٢.٦ ك.ب — أقل من اللوجو الأصلي نفسه.
+
+     لو المالك غيّر اللوجو من اللوحة، الطبقات مابقتش تخصّه — بنرجع لصورة
+     واحدة بظهور ناعم بدل ما نركّب لوجو غلط. */
+  const DEFAULT_LOGO_RE = /(^|\/)logo\.png(\?|$)/;
+  const LOGO_LAYERS = [
+    { key: 'left',  file: 'assets/logo-left.png' },
+    { key: 'right', file: 'assets/logo-right.png' },
+    { key: 'word',  file: 'assets/logo-word.png' },
+    { key: 'sub',   file: 'assets/logo-sub.png' },
+  ];
+
+  function usesDefaultLogo() {
+    const v = String(DATA.logo || '').trim();
+    return !v || DEFAULT_LOGO_RE.test(v);
+  }
+
+  function logoParts(name) {
+    if (!usesDefaultLogo()) {
+      return `<img class="ex-eg-logo-single" ${imgSrc(DATA.logo)} alt="${name}">`;
+    }
+    return LOGO_LAYERS.map((l, i) => {
+      /* أول طبقة بس هي اللي بتحمل النص البديل — الباقي نسخ بصرية */
+      const a11y = i === 0 ? `alt="${name}"` : 'alt="" aria-hidden="true"';
+      return `<img class="ex-eg-logo-part ex-eg-lp-${l.key}" ${imgSrc(l.file)} ${a11y}>`;
+    }).join('');
+  }
+
+  /* شريط التنقل السفلي.
+     ليه موجود: الموقع بيتفتح كتطبيق على الموبايل (عمود ٥٦٠ بكسل)، والسلة
+     والطلبات كانوا متخبّيين في أيقونات صغيرة فوق — وصفحة المنيو طولها كام
+     شاشة، فالزبون وهو نازل مابقاش قدامه أي طريق يرجع بيه أو يشوف سلته.
+     الشريط ثابت جوّه إطار التطبيق نفسه مش عرض الشاشة، فعلى الديسكتوب
+     بيفضل داخل العمود مش شايل الشاشة من الآخر للآخر.
+     بيظهر في صفحة المنيو بس: الصفحة الرئيسية شاشة واحدة بأزرار كبيرة
+     بتوصّل لنفس الوجهات، فالشريط تحتها تكرار بياكل من الصورة. */
+  function bottomNav() {
+    const T = state.lang === 'ar'
+      ? { home: 'الرئيسية', menu: 'المنيو', orders: 'طلباتي', cart: 'السلة', nav: 'تنقل سريع' }
+      : { home: 'Home', menu: 'Menu', orders: 'Orders', cart: 'Cart', nav: 'Quick navigation' };
+    const count = cartCount();
+    const item = (id, icon, label, active, badge) => `
+      <button type="button" class="ex-eg-bn-item${active ? ' ex-eg-active' : ''}" id="${id}"${active ? ' aria-current="page"' : ''}>
+        <span class="ex-eg-bn-icon">${icon}${badge ? `<span class="ex-eg-bn-badge">${badge > 99 ? '99+' : badge}</span>` : ''}</span>
+        <span class="ex-eg-bn-label">${label}</span>
+      </button>`;
+    return `
+      <nav class="ex-eg-bottom-nav" aria-label="${T.nav}">
+        ${item('nav-home', ICONS.home, T.home, state.page === 'home')}
+        ${item('nav-cart', ICONS.cart, T.cart, false, count)}
+        ${item('nav-orders', ICONS.receipt, T.orders, false)}
+        ${item('nav-menu', ICONS.list, T.menu, state.page === 'menu')}
+      </nav>`;
   }
 
   function bannerList() {
@@ -334,6 +447,7 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
       <div id="sections">${sections}</div>
       <button class="ex-eg-to-top" id="to-top" aria-label="${state.lang === 'ar' ? 'الرجوع لأعلى' : 'Back to top'}" hidden>${ICONS.back}</button>
       ${!query && shownCategories.length < categories.length ? `<div id="menu-load-more" class="ex-eg-menu-load-more" aria-live="polite">${state.menuBatchLoading ? (state.lang === 'ar' ? 'جاري تحميل القسم التالي...' : 'Loading next section...') : (state.lang === 'ar' ? 'انزل لعرض القسم التالي' : 'Scroll for the next section')}</div>` : ''}
+      ${bottomNav()}
     `;
   }
 
@@ -951,6 +1065,15 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
     on('#open-my-orders', () => openMyOrders(cartCtx()));
     on('#open-my-orders-home', () => openMyOrders(cartCtx()));
     on('#open-branches-home', openBranches);
+    /* الرجوع للرئيسية من الشريط بيرجّع لأول الصفحة — الزبون اللي نازل في
+       نص المنيو ورجع للرئيسية مايلاقيش نفسه في نص الصفحة الجديدة. */
+    on('#nav-home', () => { if (state.page !== 'home') { state.page = 'home'; render(); window.scrollTo(0, 0); } });
+    on('#nav-menu', () => {
+      if (state.page !== 'menu') { state.page = 'menu'; render(); window.scrollTo(0, 0); }
+      else window.scrollTo({ top: 0, behavior: 'smooth' });   /* ضغطة تانية = ارجع لفوق */
+    });
+    on('#nav-orders', () => openMyOrders(cartCtx()));
+    on('#nav-cart', () => openCartDrawer(cartCtx()));
     on('#open-inbox', () => openInbox(cartCtx(), (pid) => { const p = findProduct(pid); if (p) { if (state.page !== 'menu') { state.page = 'menu'; render(); } openProduct(p); } }));
     wireSubscribeCard(app, cartCtx());
     on('#open-search', openSearch);
@@ -1087,6 +1210,9 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
       onFeedChange((n) => { const b = document.getElementById('notif-badge'); if (b) b.textContent = n || ''; });
       document.addEventListener('open-inbox', () => openInbox(cartCtx(), (pid) => { const p = findProduct(pid); if (p) openProduct(p); }));
     }
+    /* الزيارة بتتعدّ بعد ما الصفحة تبقى شغّالة فعلاً — مش وقت الإقلاع —
+       عشان مانعدّش روبوتات الزحف ولا فتحة اتقفلت قبل ما تحمّل. */
+    countVisit();
     await setupPwa(!!SETTINGS.features.pwaInstall, cartCtx());
     if (SETTINGS.features.cookieBanner !== false) setTimeout(() => setupCookieConsent(cartCtx()), 1200);
     window.__openCookiePolicy = () => openCookiePolicy(state.lang);
@@ -1104,5 +1230,7 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
     if (!splash) return;
     splash.classList.add('ex-eg-hide');
     setTimeout(() => splash.remove(), 600);
+    /* الستارة بتروح دلوقتي — دي اللحظة اللي لازم يبدأ فيها الدخول */
+    startHomeIntro();
   }
 })();

@@ -63,6 +63,32 @@ function copyTree(from, to) {
 if (fs.existsSync(DIST)) fs.rmSync(DIST, { recursive: true, force: true });
 copyTree(ROOT, DIST);
 
+/* ختم نسخة لكل نشرة.
+   ------------------------------------------------------------------
+   المشكلة اللي بيحلّها: إصدار كاش الـservice worker كان بيتزوّد **باليد**،
+   وأي نشرة يتنسى فيها الرقم بتخلّي الأجهزة قاعدة على نسخة قديمة من غير ما
+   حد ياخد باله. دلوقتي كل نشرة بتاخد رقمها لوحدها من التاريخ والوقت،
+   فمستحيل يتنسى.
+   وكمان بنكتب version.json — اللوحة (مالهاش service worker) بتسأل عنه
+   وتقول "في نسخة جديدة" بدل ما تفضل شغّالة على كود قديم. */
+const BUILD = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);   // YYYYMMDDHHMMSS
+const swPath = path.join(DIST, 'sw.js');
+if (fs.existsSync(swPath)) {
+  const sw = fs.readFileSync(swPath, 'utf8').replace(/dailybake-shell-v[\w.-]+/g, `dailybake-shell-${BUILD}`);
+  fs.writeFileSync(swPath, sw);
+}
+fs.writeFileSync(path.join(DIST, 'version.json'), JSON.stringify({ build: BUILD }) + String.fromCharCode(10));
+/* الرقم بيتحقن في الصفحات كمان عشان الجافاسكربت يعرف هو شغّال على أنهي نسخة.
+   **وسم meta مش سكربت**: الـCSP في firebase.json مابتسمحش بأي سكربت inline،
+   فالسكربت كان هيتحجب في صمت والرقم يوصل فاضي. الـmeta مالهاش علاقة بالـCSP. */
+['index.html', path.join('dashboard', 'index.html')].forEach((rel) => {
+  const p = path.join(DIST, rel);
+  if (!fs.existsSync(p)) return;
+  const html = fs.readFileSync(p, 'utf8').replace('</head>', `<meta name="app-build" content="${BUILD}"></head>`);
+  fs.writeFileSync(p, html);
+});
+console.log(`   رقم النسخة: ${BUILD}`);
+
 let files = 0, bytes = 0;
 (function walk(p) {
   for (const e of fs.readdirSync(p, { withFileTypes: true })) {

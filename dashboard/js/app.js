@@ -8,7 +8,7 @@ import { renderOrders } from './orders.js';
 import { renderMenuEditor } from './menuEditor.js';
 import { renderBranches } from './branches.js';
 import { renderCustomers } from './customers.js';
-import { renderIdentity, renderBanners, renderContact, renderPayments, renderGovernorates, renderFeatures, renderTelegram } from './settings.js';
+import { renderIdentity, renderBanners, renderContact, renderPayments, renderGovernorates, renderFeatures, renderTelegram, renderDrive } from './settings.js';
 import { renderFeedback } from './feedback.js';
 import { renderAdmins } from './admins.js';
 import { renderDiscounts } from './discounts.js';
@@ -42,6 +42,7 @@ const SECTIONS = [
   { key: 'contact', group: 'settings', label: 'التواصل والعنوان', icon: ICONS.phone, render: renderContact, perm: 'settings.contact' },
   { key: 'features', group: 'settings', label: 'الإشعارات والتطبيق', icon: ICONS.bell, render: renderFeatures, perm: 'settings.features' },
   { key: 'telegram', group: 'settings', label: 'بوت تليجرام', icon: ICONS.send, render: renderTelegram, perm: 'settings.telegram' },
+  { key: 'drive', group: 'settings', label: 'صور على جوجل درايف', icon: ICONS.images, render: renderDrive, perm: 'owner' },
   { key: 'admins', group: 'admin', label: 'الأدمنز والصلاحيات', icon: ICONS.shield, render: renderAdmins, perm: 'owner' },
   { key: 'backup', group: 'admin', label: 'نسخة احتياطية', icon: ICONS.upload, render: renderBackup, perm: 'owner' },
 ];
@@ -367,3 +368,8 @@ function renderShell() {
 }
 
 boot();
+
+/* اللوحة مالهاش service worker، فمفيش حاجة تقولها إن في نسخة جديدة.
+   `watchBuild` بتقارن الرقم المحقون وقت النشر بـversion.json وتعرض شريط
+   تحديث — من غيره المالك ممكن يفضل شغّال على لوحة قديمة بعد أي نشرة. */
+import('../../js/update.js').then(u => u.watchBuild()).catch(() => { /* تشغيل محلي */ });

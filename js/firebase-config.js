@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getAnalytics, isSupported as analyticsSupported } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-analytics.js";
 import {
-  getDatabase, ref, get, set, push, update, remove, onValue, child, query, limitToLast, orderByChild, runTransaction,
+  getDatabase, ref, get, set, push, update, remove, onValue, child, query, limitToLast, orderByChild, runTransaction, increment,
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
 import {
   getAuth, signInAnonymously, onAuthStateChanged, signOut,
@@ -22,7 +22,7 @@ export const app = initializeApp(firebaseConfig);
 export const db = getDatabase(app);
 export const auth = getAuth(app);
 
-export { ref, get, set, push, update, remove, onValue, child, query, limitToLast, orderByChild, runTransaction, signInAnonymously, onAuthStateChanged, signOut };
+export { ref, get, set, push, update, remove, onValue, child, query, limitToLast, orderByChild, runTransaction, increment, signInAnonymously, onAuthStateChanged, signOut };
 
 analyticsSupported().then((ok) => { if (ok) getAnalytics(app); }).catch(() => {});
 

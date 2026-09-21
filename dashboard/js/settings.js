@@ -517,3 +517,159 @@ export async function renderTelegram(container) {
     } catch (e) { toast('حصل خطأ في الإرسال — اتأكد من النت', 'error'); }
   });
 }
+
+/* ---------------- جوجل درايف ---------------- */
+/* ليه القسم ده موجود: قاعدة فايربيز المجانية سقفها ١٠ جيجا تحميل في الشهر،
+   والصور بتاكلها لوحدها. لما نربط الدرايف بتروح عليه الصور الكبيرة والقاعدة
+   تفضل للبيانات — يعني الموقع مابيقفش آخر الشهر. التفاصيل في assetStore.js. */
+export async function renderDrive(container) {
+  loading(container);
+  const { drive, DEFAULT_THRESHOLD_KB, loadDriveConfig } = await import('./assetStore.js');
+  const cfg = await readNode('settings/drive', {});
+  const origin = location.origin;
+  const origins = [origin, 'http://localhost:4173'].filter((v, i, a) => a.indexOf(v) === i);
+
+  container.innerHTML = `
+    <div class="ex-eg-card ex-eg-narrow">
+      <div class="ex-eg-card-head"><div><h3>${ICONS.images} صور على جوجل درايف</h3><p class="ex-eg-hint">
+        الصور الكبيرة بتتخزّن على درايف المحل (١٥ جيجا مجاناً) بدل قاعدة البيانات،
+        وبتتخدم من شبكة جوجل نفسها — أسرع للزبون، وبيوفّر حصة التحميل الشهرية.
+        <b>بتسجّل دخول جوجل مرة واحدة بس</b> وبعد كده كل رفع بيحصل في الخلفية.
+      </p></div></div>
+
+      <div class="ex-eg-drive-state" id="drive-state">جاري الفحص...</div>
+
+      <hr class="ex-eg-backup-sep">
+      <h4 class="ex-eg-backup-h">${ICONS.settings} التجهيز (مرة واحدة في عمر المشروع)</h4>
+      <ol class="ex-eg-tg-steps">
+        <li>افتح <b><a href="https://console.cloud.google.com/auth/branding" target="_blank" rel="noopener">شاشة موافقة OAuth</a></b>
+            بحساب المحل، اختار <b>External</b>، واملا الاسم والإيميل، وبعد ما تخلّص اضغط <b>Publish app</b>
+            (لو سِبتها Testing التوكن بينتهي كل ٧ أيام وهتضطر تسجّل تاني).</li>
+        <li>في تبويب <b>Data access</b> ضيف الصلاحية
+            <code dir="ltr">.../auth/drive.file</code> — دي صلاحية "الملفات اللي التطبيق ده عمِلها بس"،
+            مابتشوفش أي حاجة تانية في درايفك وجوجل مابيطلبش عليها مراجعة.</li>
+        <li>افتح <b><a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credentials</a></b>
+            ← <b>Create credentials</b> ← <b>OAuth client ID</b> ← النوع <b>Web application</b>.</li>
+        <li>في <b>Authorized JavaScript origins</b> ضيف العناوين دي بالظبط:
+            <div class="ex-eg-drive-origins">${origins.map(o => `<code dir="ltr">${esc(o)}</code>`).join('')}</div>
+            <small class="ex-eg-hint">أي نطاق تاني الموقع بيفتح منه لازم يتضاف هنا كمان، وإلا جوجل هيرفض.</small></li>
+        <li>انسخ <b>Client ID</b> والصقه تحت واضغط حفظ، وبعدين اضغط "اربط حساب جوجل".</li>
+      </ol>
+
+      <div class="ex-eg-field"><label>OAuth Client ID</label>
+        <input id="d-client" dir="ltr" value="${esc(cfg.clientId || '')}" placeholder="1234567890-abc.apps.googleusercontent.com"></div>
+
+      <div class="ex-eg-row-2">
+        <div class="ex-eg-field"><label>حد الحجم (ك.ب) — أكبر من كده يروح درايف</label>
+          <input id="d-threshold" type="number" min="5" max="500" step="5" dir="ltr"
+                 value="${esc(Number(cfg.thresholdKb) > 0 ? cfg.thresholdKb : DEFAULT_THRESHOLD_KB)}"></div>
+        <label class="ex-eg-feature-row"><span class="ex-eg-fr-icon">${ICONS.check}</span>
+          <span class="ex-eg-fr-body"><b>فعّل الرفع على درايف</b><small>لو قفلته كل الصور هترجع للقاعدة</small></span>
+          <input type="checkbox" id="d-enabled" ${cfg.enabled !== false ? 'checked' : ''}><span class="ex-eg-switch"></span></label>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="ex-eg-btn" id="d-save">${ICONS.check} حفظ</button>
+        <button class="ex-eg-btn ex-eg-ghost" id="d-connect">${ICONS.globe} اربط حساب جوجل</button>
+        <button class="ex-eg-btn ex-eg-ghost" id="d-disconnect" ${drive.wasGranted() ? '' : 'hidden'}>${ICONS.logout} فك الربط من الجهاز ده</button>
+      </div>
+      <div class="ex-eg-tg-help" id="d-help" hidden></div>
+    </div>`;
+
+  const $ = s => container.querySelector(s);
+  const state = $('#drive-state');
+  const help = (html) => { const b = $('#d-help'); b.hidden = !html; b.innerHTML = html || ''; };
+  const mb = (n) => (n / 1048576).toFixed(n > 10485760 ? 0 : 1);
+
+  /* الحالة الحقيقية بتتقرا من جوجل نفسه مش من إعداد محفوظ —
+     عشان لو المالك سحب الموافقة من حسابه نعرف على طول. */
+  async function refreshState() {
+    const clientId = $('#d-client').value.trim();
+    drive.setClientId(clientId);
+    if (!clientId) {
+      state.className = 'ex-eg-drive-state is-off';
+      state.innerHTML = 'مش متظبّط — كمّل خطوات التجهيز تحت';
+      return;
+    }
+    if (!drive.wasGranted()) {
+      state.className = 'ex-eg-drive-state is-off';
+      state.innerHTML = 'متظبّط بس الجهاز ده لسه مربطش — اضغط "اربط حساب جوجل"';
+      return;
+    }
+    state.className = 'ex-eg-drive-state';
+    state.innerHTML = 'بنتأكد من الحساب...';
+    try {
+      const u = await drive.usage();
+      if (!u) {
+        state.className = 'ex-eg-drive-state is-off';
+        state.innerHTML = 'الربط انتهى — اضغط "اربط حساب جوجل" تاني';
+        return;
+      }
+      const pct = u.limitBytes ? Math.min(100, Math.round(u.usedBytes / u.limitBytes * 100)) : 0;
+      state.className = 'ex-eg-drive-state is-on';
+      state.innerHTML = `مربوط ✓ <b dir="ltr">${esc(u.email)}</b>
+        <span class="ex-eg-drive-bar"><i style="width:${pct}%"></i></span>
+        <small>${mb(u.usedBytes)} ميجا مستخدمة من ${u.limitBytes ? mb(u.limitBytes) + ' ميجا' : 'غير محدود'}</small>`;
+    } catch (e) {
+      state.className = 'ex-eg-drive-state is-off';
+      state.innerHTML = 'تعذّر الاتصال بجوجل — ' + esc(e.message || '');
+    }
+  }
+
+  $('#d-save').addEventListener('click', async () => {
+    const clientId = $('#d-client').value.trim();
+    if (clientId && !/\.apps\.googleusercontent\.com$/.test(clientId)) {
+      toast('معرّف العميل شكله غلط — لازم ينتهي بـ .apps.googleusercontent.com', 'error');
+      return;
+    }
+    try {
+      await set(ref(db, 'settings/drive'), {
+        clientId,
+        enabled: $('#d-enabled').checked,
+        thresholdKb: Math.max(5, Math.min(500, Number($('#d-threshold').value) || DEFAULT_THRESHOLD_KB)),
+        account: cfg.account || '',
+      });
+      await loadDriveConfig({ force: true });
+      toast('اتحفظت', 'success');
+      refreshState();
+    } catch (e) {
+      toast('مفيش صلاحية للحفظ — لازم تكون المالك', 'error');
+    }
+  });
+
+  $('#d-connect').addEventListener('click', async () => {
+    const clientId = $('#d-client').value.trim();
+    if (!clientId) { toast('حط Client ID الأول واحفظ', 'error'); return; }
+    drive.setClientId(clientId);
+    help('');
+    try {
+      await drive.connect();
+      $('#d-disconnect').hidden = false;
+      toast('اتربط ✓ — مش هتسجّل تاني على الجهاز ده', 'success');
+      const u = await drive.usage();
+      if (u && u.email) {
+        try { await set(ref(db, 'settings/drive/account'), u.email); } catch (e) { /* مش مالك */ }
+      }
+      refreshState();
+    } catch (e) {
+      const m = String((e && e.message) || '');
+      /* أشهر سببين للفشل — الرسالة الجاية من جوجل عامة ومابتقولش ده */
+      help('<b>الربط ماتمّش:</b> ' + esc(m) + '<br><br>'
+        + 'لو الرسالة عن <code dir="ltr">origin</code> أو <code dir="ltr">redirect_uri</code>: '
+        + 'العنوان <code dir="ltr">' + esc(origin) + '</code> مش مضاف في '
+        + '<b>Authorized JavaScript origins</b> بتاع الـ Client ID. ضيفه واستنى دقيقة وجرّب تاني.<br>'
+        + 'ولو النافذة بتقفل لوحدها: الموقع لازم يكون منشور بالهيدر '
+        + '<code dir="ltr">Cross-Origin-Opener-Policy: same-origin-allow-popups</code>.');
+      toast('الربط ماتمّش — شوف التفاصيل تحت', 'error');
+    }
+  });
+
+  $('#d-disconnect').addEventListener('click', () => {
+    drive.disconnect();
+    $('#d-disconnect').hidden = true;
+    toast('اتفك الربط من الجهاز ده', 'success');
+    refreshState();
+  });
+
+  refreshState();
+}

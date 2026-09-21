@@ -13,6 +13,7 @@
 import { db } from './firebase-config.js';
 
 const PREFIX = 'a:';
+const DRIVE_PREFIX = 'g:';
 const CACHE_NAME = 'dailybake-assets-v1';
 const MEM = new Map();       // id -> data URL
 const INFLIGHT = new Map();  // id -> Promise
@@ -34,8 +35,36 @@ export function siteUrl(v) {
   try { return new URL(s.replace(/^\/+/, ''), SITE_BASE).href; } catch (e) { return s; }
 }
 
-export function isAssetRef(v) { return typeof v === 'string' && v.startsWith(PREFIX); }
+export function isAssetRef(v) {
+  return typeof v === 'string' && (v.startsWith(PREFIX) || v.startsWith(DRIVE_PREFIX));
+}
 export function assetId(v) { return String(v).slice(PREFIX.length); }
+
+/* إشارة صورة على جوجل درايف: `g:<معرّف الملف>~<هاش المعاينة>`
+   الجزء التاني اختياري — معاينة صغيرة مموّهة متخزّنة في القاعدة بتتعرض
+   فوراً لحد ما صورة الدرايف توصل، فمافيش مربع فاضي ولا قفزة في التخطيط. */
+export function isDriveRef(v) { return typeof v === 'string' && v.startsWith(DRIVE_PREFIX); }
+
+export function parseDriveRef(v) {
+  const rest = String(v).slice(DRIVE_PREFIX.length);
+  const cut = rest.indexOf('~');
+  return cut < 0
+    ? { fileId: rest, lqip: '' }
+    : { fileId: rest.slice(0, cut), lqip: rest.slice(cut + 1) };
+}
+
+const safeId = (v) => String(v || '').replace(/[^A-Za-z0-9_-]/g, '');
+
+/* جوجل بيخدم ملفات الدرايف العامة من عنوانين مختلفين. الأول أسرع لكنه
+   بيتخنق أحياناً تحت ضغط، والتاني أبطأ شوية لكنه أثبت — فبنجرّب الاتنين
+   بالترتيب قبل ما نستسلم ونسيب المعاينة المموّهة مكانها. */
+export function driveUrls(fileId, width = 1000) {
+  const id = safeId(fileId);
+  return [
+    'https://lh3.googleusercontent.com/d/' + id + '=w' + width,
+    'https://drive.google.com/thumbnail?id=' + id + '&sz=w' + width,
+  ];
+}
 
 function restUrl(id) {
   const base = String(db.app.options.databaseURL || '').replace(/\/$/, '');
@@ -84,17 +113,31 @@ export async function getAsset(id) {
    - رابط عادي  → src مباشر
    - إشارة a:id → بكسل فاضي + data-asset عشان يتحمّل وقت ما يقرب من الشاشة */
 export function imgSrc(value, fallback = '') {
-  if (isAssetRef(value)) return `src="${BLANK}" data-asset="${assetId(value).replace(/[^A-Za-z0-9_-]/g, '')}"`;
+  if (isDriveRef(value)) {
+    const { fileId, lqip } = parseDriveRef(value);
+    /* المعاينة (لو موجودة) بتتحمّل من القاعدة الأول، وصورة الدرايف بتحل
+       محلها لما تجهز — الاتنين بيتظبطوا في paint() تحت. */
+    return `src="${BLANK}" data-drive="${safeId(fileId)}"${lqip ? ` data-asset="${safeId(lqip)}"` : ''}`;
+  }
+  if (isAssetRef(value)) return `src="${BLANK}" data-asset="${safeId(assetId(value))}"`;
   const v = siteUrl(value || fallback || '');
   return v ? `src="${String(v).replace(/"/g, '&quot;')}"` : `src="${BLANK}"`;
 }
 
 /* نفس الفكرة لخلفية CSS (بانرات/خلفية الصفحة) */
 export function bgRef(value) {
-  return isAssetRef(value) ? ` data-asset-bg="${assetId(value).replace(/[^A-Za-z0-9_-]/g, '')}"` : '';
+  if (isDriveRef(value)) {
+    const { fileId, lqip } = parseDriveRef(value);
+    return ` data-drive-bg="${safeId(fileId)}"${lqip ? ` data-asset-bg="${safeId(lqip)}"` : ''}`;
+  }
+  return isAssetRef(value) ? ` data-asset-bg="${safeId(assetId(value))}"` : '';
 }
 
 const MARGIN = 600;   // بنبدأ التحميل قبل ما الصورة توصل الشاشة بالمسافة دي
+
+/* أي عنصر لسه مستني صورة — من القاعدة أو من الدرايف، صورة كانت أو خلفية */
+const SELECTOR = ['data-asset', 'data-asset-bg', 'data-drive', 'data-drive-bg']
+  .map(a => `[${a}]:not([data-asset-done])`).join(',');
 
 function near(el) {
   const r = el.getBoundingClientRect();
@@ -124,7 +167,7 @@ function sweep() {
   sweepQueued = true;
   requestAnimationFrame(() => {
     sweepQueued = false;
-    document.querySelectorAll('[data-asset]:not([data-asset-done]),[data-asset-bg]:not([data-asset-done])')
+    document.querySelectorAll(SELECTOR)
       .forEach((el) => { if (near(el)) paint(el); });
   });
 }
@@ -137,14 +180,54 @@ function bindSweep() {
   addEventListener('resize', sweep, { passive: true });
 }
 
+/* بنجرّب عناوين الدرايف بالترتيب وبنفتكر اللي اشتغل، فباقي صور نفس الصفحة
+   تروح على العنوان الصح من أول مرة بدل ما كل واحدة تجرّب من الأول. */
+let drivePick = 0;
+const DRIVE_OK = new Map();   // fileId -> عنوان شغال
+
+function firstWorking(urls) {
+  return new Promise((resolve) => {
+    let i = drivePick;
+    let tried = 0;
+    const attempt = () => {
+      if (tried++ >= urls.length) return resolve('');
+      const url = urls[i % urls.length];
+      const probe = new Image();
+      probe.onload = () => { drivePick = i % urls.length; resolve(url); };
+      probe.onerror = () => { i++; attempt(); };
+      probe.src = url;
+    };
+    attempt();
+  });
+}
+
 async function paint(el) {
-  const id = el.dataset.asset || el.dataset.assetBg;
-  if (!id || el.dataset.assetDone) return;
+  if (el.dataset.assetDone) return;
+  const lqipId = el.dataset.asset || el.dataset.assetBg;
+  const fileId = el.dataset.drive || el.dataset.driveBg;
+  if (!lqipId && !fileId) return;
   el.dataset.assetDone = '1';
-  const url = await getAsset(id);
+
+  const isBg = !!(el.dataset.assetBg || el.dataset.driveBg);
+  const show = (url) => {
+    if (isBg) el.style.backgroundImage = `url('${url}')`;
+    else el.src = url;
+  };
+
+  /* المعاينة الصغيرة الأول — بتوصل في أقل من عُشر ثانية وبتمنع المربع الفاضي */
+  if (lqipId) {
+    const small = await getAsset(lqipId);
+    if (small) { show(small); if (fileId) el.classList.add('is-lqip'); }
+  }
+  if (!fileId) return;
+
+  const cached = DRIVE_OK.get(fileId);
+  const url = cached || await firstWorking(driveUrls(fileId));
+  /* الدرايف مش راد؟ المعاينة المموّهة بتفضل مكانها — الصفحة ماتبانش مكسورة */
   if (!url) return;
-  if (el.dataset.assetBg) el.style.backgroundImage = `url('${url}')`;
-  else el.src = url;
+  DRIVE_OK.set(fileId, url);
+  show(url);
+  el.classList.remove('is-lqip');
 }
 
 /* بتتنادى بعد أي render — بتربط كل الصور الجديدة.
@@ -153,7 +236,7 @@ export function wireAssets(root) {
   if (!root || !root.querySelectorAll) return;
   bindSweep();
   const ob = observer();
-  root.querySelectorAll('[data-asset]:not([data-asset-done]),[data-asset-bg]:not([data-asset-done])')
+  root.querySelectorAll(SELECTOR)
     .forEach((el) => {
       if (near(el)) { paint(el); return; }
       if (ob) ob.observe(el); else paint(el);
@@ -162,5 +245,13 @@ export function wireAssets(root) {
 
 /* تحميل مبكر لصور مهمة (أول بانر مثلاً) من غير انتظار التمرير */
 export function preloadAssets(values) {
-  (values || []).forEach((v) => { if (isAssetRef(v)) getAsset(assetId(v)); });
+  (values || []).forEach((v) => {
+    if (isDriveRef(v)) {
+      const { fileId, lqip } = parseDriveRef(v);
+      if (lqip) getAsset(lqip);
+      if (fileId) firstWorking(driveUrls(fileId)).then((u) => { if (u) DRIVE_OK.set(fileId, u); });
+      return;
+    }
+    if (isAssetRef(v)) getAsset(assetId(v));
+  });
 }

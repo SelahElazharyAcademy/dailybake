@@ -17,6 +17,13 @@
 <link rel="apple-touch-icon" href="assets/icon-192.png?v=2">
 <!-- اللوجو والخلفية بيبدأوا التحميل مع أول بايت من الصفحة بدل ما يستنوا الـ JS -->
 <link rel="preload" as="image" href="assets/logo.png?v=2" fetchpriority="high">
+<!-- طبقات اللوجو الأربعة (12 ك.ب) — بتتركّب في أول لحظة من الصفحة الرئيسية،
+     فلو اتحمّلت متأخرة الحركة بتبدأ ناقصة. مفيش fetchpriority عشان متزاحمش
+     اللوجو والخلفية على الاتصال الأول. -->
+<link rel="preload" as="image" href="assets/logo-left.png">
+<link rel="preload" as="image" href="assets/logo-right.png">
+<link rel="preload" as="image" href="assets/logo-word.png">
+<link rel="preload" as="image" href="assets/logo-sub.png">
 <link rel="preload" as="image" href="assets/home-bg-bread.webp" fetchpriority="high">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -79,7 +86,7 @@
   </div>
 <!-- SEO:END --></div>
 
-<script type="module" src="js/firebase-config.js?v=20260915v"></script>
-<script type="module" src="js/app.js?v=20260915v"></script>
+<script type="module" src="js/firebase-config.js"></script>
+<script type="module" src="js/app.js"></script>
 </body>
 </html>

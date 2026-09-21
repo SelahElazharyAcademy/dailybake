@@ -1,5 +1,6 @@
 import { ICONS } from '../../js/icons.js';
 import { db, ref, onValue } from '../../js/firebase-config.js';
+import { summarize } from '../../js/visits.js';
 
 function tName(obj) { if (!obj) return ''; return obj.ar || obj.en || ''; }
 function startOfToday() { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); }
@@ -9,6 +10,13 @@ export function renderOverview(container, { profile } = {}) {
   const myBranch = profile && profile.role !== 'owner' && profile.branchId ? String(profile.branchId) : '';
   container.innerHTML = `
     <div class="ex-eg-stat-grid" id="stat-grid"></div>
+    <div class="ex-eg-card ex-eg-visits" id="visits-card">
+      <div class="ex-eg-visits-head">
+        <h3>${ICONS.users} زيارات الموقع</h3>
+        <span class="ex-eg-hint">الزيارة = جهاز واحد في اليوم، مش كل فتحة للصفحة</span>
+      </div>
+      <div id="visits-body"><div class="ex-eg-empty-d">جاري التحميل...</div></div>
+    </div>
     <div class="ex-eg-row-2">
       <div class="ex-eg-card">
         <h3 style="margin:0 0 12px;font-size:14px;">أحدث الطلبات</h3>
@@ -20,6 +28,8 @@ export function renderOverview(container, { profile } = {}) {
       </div>
     </div>
   `;
+
+  wireVisits(container);
 
   onValue(ref(db, 'orders'), (snap) => {
     let orders = [];
@@ -65,6 +75,46 @@ export function renderOverview(container, { profile } = {}) {
       </tbody></table></div>
     ` : `<div class="ex-eg-empty-d">لسه مفيش بيانات</div>`;
   });
+}
+
+/* ---------- زيارات الموقع ----------
+   العقدة بتتقري كاملة مرة واحدة وبتتحدّث لحظياً. حجمها صغير جداً (رقم
+   لكل يوم) فمفيش داعي لأي تقسيم أو استعلام. */
+function wireVisits(container) {
+  const box = container.querySelector('#visits-body');
+  if (!box) return;
+  onValue(ref(db, 'visits'), (snap) => {
+    const v = summarize(snap.exists() ? snap.val() : null);
+    if (!v.total) {
+      box.innerHTML = `<div class="ex-eg-empty-d">لسه مفيش زيارات متسجّلة.<br>
+        <small>العدّاد بيشتغل بعد رفع قواعد الأمان الجديدة على القاعدة.</small></div>`;
+      return;
+    }
+    const peak = Math.max(1, ...v.last7.map(d => d.count));
+    const dayName = (k) => new Date(k + 'T12:00:00').toLocaleDateString('ar-EG', { weekday: 'short' });
+    box.innerHTML = `
+      <div class="ex-eg-visit-nums">
+        ${visitNum('النهارده', v.today)}
+        ${visitNum('آخر ٧ أيام', v.week)}
+        ${visitNum('الشهر ده', v.month)}
+        ${visitNum('الإجمالي', v.total)}
+      </div>
+      <div class="ex-eg-visit-bars">
+        ${v.last7.map(d => `
+          <div class="ex-eg-vb" title="${d.day}">
+            <b>${d.count}</b>
+            <i style="height:${Math.round((d.count / peak) * 100)}%"></i>
+            <span>${dayName(d.day)}</span>
+          </div>`).join('')}
+      </div>`;
+  }, () => {
+    /* القراءة اترفضت — القواعد لسه مارفعتش، أو الحساب مش أدمن */
+    box.innerHTML = `<div class="ex-eg-empty-d">تعذّر قراءة الزيارات — اتأكد إن قواعد الأمان اترفعت.</div>`;
+  });
+}
+
+function visitNum(label, n) {
+  return `<div class="ex-eg-vn"><b>${Number(n).toLocaleString('ar-EG')}</b><span>${label}</span></div>`;
 }
 
 function statCard(icon, label, value) {

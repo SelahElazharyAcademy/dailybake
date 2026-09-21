@@ -231,7 +231,9 @@ export async function setupPwa(enabled, ctx) {
     try { const regs = await navigator.serviceWorker.getRegistrations(); regs.forEach(r => r.unregister()); } catch (e) { /* ignore */ }
     return;
   }
-  try { await navigator.serviceWorker.register('./sw.js'); } catch (e) { /* ignore */ }
+  /* مش مجرد تسجيل: `setupUpdates` بتتابع النسخ الجديدة وتوصّلها للزائر
+     من غير ما يحتاج يفتح الموقع مرتين. التفاصيل في js/update.js. */
+  try { const u = await import('./update.js'); await u.setupUpdates(); } catch (e) { /* ignore */ }
   navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.type === 'open-inbox') document.dispatchEvent(new CustomEvent('open-inbox')); });
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; maybeShowInstallBanner(ctx); });
   window.addEventListener('appinstalled', () => { hideInstallBanner(); if (window.__sfToast) window.__sfToast('✓', ICONS.check); });

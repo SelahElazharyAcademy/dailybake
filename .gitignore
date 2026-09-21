@@ -10,3 +10,6 @@ push-worker/config.json
 push-worker/state.json
 functions/.env*
 .env*
+
+# نسخ احتياطية — فيها بيانات عملاء وإيصالات دفع
+backup/

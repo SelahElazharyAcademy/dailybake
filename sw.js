@@ -1,6 +1,6 @@
 /* Daily Bake service worker — offline shell, Web Push delivery, notification clicks.
    Push payloads are sent by the Python worker using VAPID (no FCM). */
-const CACHE = 'dailybake-shell-v40';
+const CACHE = 'dailybake-shell-v46';
 /* ملاحظة: Hosting شغّال عليه cleanUrls، يعني /index.html بيتحوّل لـ / —
    فبنخزّن الجذر './' بس عشان مانخزّنش رد فيه تحويل. */
 const SHELL = [
@@ -18,6 +18,12 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
+
+/* الصفحة بتقول للنسخة المستنية "امسكي دلوقتي" بدل ما تستنى قفل كل التبويبات.
+   من غير الرد ده، نسخة نزلت في زيارة سابقة ممكن تفضل مستنية أيام. */
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'skip-waiting') self.skipWaiting();
+});
 /* طلبات فتح الصفحة (التنقّل) — التطبيق المثبّت بيرفض أي رد فيه تحويل (redirect)
    وبيطلع صفحة فاضية. Hosting بيحوّل /index.html إلى / بسبب cleanUrls، فبنعيد
    بناء الرد من غير علامة التحويل قبل ما نرجّعه. */

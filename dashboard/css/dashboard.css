@@ -478,3 +478,79 @@ tr:last-child td{border-bottom:none;}
 .ex-eg-tgb-head{display:flex;align-items:center;gap:8px;font-size:13.5px;margin-bottom:10px;}
 .ex-eg-tgb-head svg{width:17px;height:17px;color:var(--primary);}
 .ex-eg-tgb-state{margin-inline-start:auto;font-size:11.5px;font-weight:800;color:var(--muted);background:var(--primary-light);border-radius:999px;padding:3px 10px;}
+
+/* ---------- صور على جوجل درايف ---------- */
+.ex-eg-drive-state{
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+  padding:12px 14px;border-radius:12px;margin-bottom:6px;
+  background:var(--primary-light);border:1px solid var(--border);
+  font-size:13px;font-weight:600;color:var(--text);
+}
+.ex-eg-drive-state.is-on{background:#E8F6EE;border-color:#BFE3CE;color:var(--success)}
+.ex-eg-drive-state.is-off{background:#FFF6E8;border-color:#F2DCB8;color:var(--warn)}
+.ex-eg-drive-state small{font-weight:500;color:var(--muted)}
+.ex-eg-drive-state b{font-weight:700}
+
+/* شريط المساحة المستخدمة على الدرايف */
+.ex-eg-drive-bar{
+  flex:1 1 120px;min-width:100px;height:6px;border-radius:99px;
+  background:rgba(0,0,0,.08);overflow:hidden;
+}
+.ex-eg-drive-bar i{display:block;height:100%;background:currentColor;border-radius:99px}
+
+.ex-eg-drive-origins{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+.ex-eg-drive-origins code{
+  display:block;padding:7px 10px;border-radius:8px;
+  background:var(--bg);border:1px solid var(--border);
+  font-size:12px;user-select:all;
+}
+
+/* ---------- زيارات الموقع ---------- */
+.ex-eg-visits{margin-bottom:16px}
+.ex-eg-visits-head{
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:14px;
+}
+.ex-eg-visits-head h3{margin:0;font-size:14px;display:flex;align-items:center;gap:7px}
+.ex-eg-visits-head h3 svg{width:17px;height:17px;color:var(--primary)}
+
+.ex-eg-visit-nums{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));
+  gap:10px;margin-bottom:18px;
+}
+.ex-eg-vn{
+  padding:12px 14px;border-radius:12px;
+  background:var(--bg);border:1px solid var(--border);
+}
+.ex-eg-vn b{display:block;font-size:22px;font-weight:800;line-height:1.1;color:var(--text)}
+.ex-eg-vn span{display:block;margin-top:3px;font-size:11.5px;font-weight:600;color:var(--muted)}
+
+/* عمود لكل يوم من آخر أسبوع — الرقم فوق العمود مش في تلميح مخفي،
+   عشان المالك يقرا القيمة من غير ما يقرّب الماوس. */
+.ex-eg-visit-bars{
+  display:grid;grid-template-columns:repeat(7,1fr);gap:8px;
+  align-items:end;height:130px;
+}
+.ex-eg-vb{
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+  gap:5px;height:100%;
+}
+.ex-eg-vb b{font-size:11px;font-weight:700;color:var(--text)}
+.ex-eg-vb i{
+  display:block;width:100%;max-width:34px;min-height:3px;border-radius:7px 7px 3px 3px;
+  background:linear-gradient(180deg,var(--primary) 0%,var(--primary-dark) 100%);
+  box-shadow:0 2px 6px rgba(242,103,34,.28);
+}
+.ex-eg-vb span{font-size:10.5px;font-weight:600;color:var(--muted)}
+
+/* ---------- شريط "في نسخة جديدة" للوحة ---------- */
+.ex-eg-update-bar{
+  position:fixed;inset-inline:12px;top:12px;z-index:9999;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  max-width:520px;margin:0 auto;padding:10px 14px;border-radius:14px;
+  background:var(--primary);color:#fff;font-size:13px;font-weight:600;
+  box-shadow:0 10px 30px rgba(80,40,10,.3);
+}
+.ex-eg-update-bar button{
+  flex-shrink:0;background:#fff;color:var(--primary);border:none;border-radius:999px;
+  padding:7px 16px;font-size:12.5px;font-weight:800;
+}
