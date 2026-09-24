@@ -296,6 +296,7 @@ export async function renderMenuEditor(container) {
             ? `<div class="ex-eg-pcd-rating" title="متوسط تقييم العملاء">★ ${r.avg} <small>(${r.count})</small></div>` : ''; })()}
           <div class="ex-eg-pcd-actions">
             <button class="ex-eg-btn ex-eg-sm ex-eg-ghost" data-act="edit" data-ci="${ci}" data-i="${pi}">${ICONS.edit}</button>
+            <button class="ex-eg-btn ex-eg-sm ex-eg-ghost" data-act="copy" data-ci="${ci}" data-i="${pi}" title="نسخ لقسم تاني">${ICONS.copy}</button>
             <button class="ex-eg-btn ex-eg-sm ex-eg-danger" data-act="del" data-ci="${ci}" data-i="${pi}">${ICONS.trash}</button>
           </div>
         </div>
@@ -330,11 +331,53 @@ export async function renderMenuEditor(container) {
       activeCatIndex = Number(b.dataset.ci);
       openProductModal(Number(b.dataset.i));
     }));
+    grid.querySelectorAll('[data-act="copy"]').forEach(b => b.addEventListener('click', () => {
+      openCopyModal(Number(b.dataset.ci), Number(b.dataset.i));
+    }));
     grid.querySelectorAll('[data-act="del"]').forEach(b => b.addEventListener('click', async () => {
       if (!confirm('متأكد من حذف المنتج؟')) return;
       const target = menu.categories[Number(b.dataset.ci)];
       target.products.splice(Number(b.dataset.i), 1);
       await saveMenu(); toast('اتحذف المنتج', 'success'); paintProducts(); paintCategories();
+    }));
+  }
+
+  /* نسخ منتج لقسم تاني: نسخة مستقلة برقم جديد — تعديلها بعد كده مايأثرش على الأصل،
+     والتقييمات مربوطة برقم المنتج فالنسخة بتبدأ من غير تقييمات. */
+  function openCopyModal(ci, pi) {
+    const src = menu.categories[ci] && (menu.categories[ci].products || [])[pi];
+    if (!src) return;
+    const bg = document.createElement('div');
+    bg.className = 'ex-eg-modal-bg';
+    bg.innerHTML = `
+      <div class="ex-eg-modal-box">
+        <h3>نسخ "${esc(src.name?.ar || src.name?.en || '')}"</h3>
+        <div class="ex-eg-field"><label>انسخه في قسم</label>
+          <select id="c-target">${menu.categories.map((c, i) => `<option value="${i}">${esc(c.name?.ar || c.name?.en || '')}${i === ci ? ' (نفس القسم)' : ''}</option>`).join('')}</select>
+        </div>
+        <div class="ex-eg-modal-close-row">
+          <button class="ex-eg-btn ex-eg-ghost" id="m-cancel">إلغاء</button>
+          <button class="ex-eg-btn" id="m-save">${ICONS.copy} نسخ</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(bg);
+    const select = bg.querySelector('#c-target');
+    select.value = String(ci === 0 && menu.categories.length > 1 ? 1 : 0);
+    bg.querySelector('#m-cancel').addEventListener('click', () => bg.remove());
+    const saveBtn = bg.querySelector('#m-save');
+    saveBtn.addEventListener('click', () => guardSave(saveBtn, 'نسخ', async () => {
+      const ti = Number(select.value);
+      const target = menu.categories[ti];
+      const copy = JSON.parse(JSON.stringify(src));
+      copy.id = Date.now();
+      if (copy.discount && copy.discount.campaignId) delete copy.discount;   // خصم الحملة بيتطبّق من صفحة الخصومات
+      if (!Array.isArray(target.products)) target.products = [];
+      target.products.push(copy);
+      await saveMenu();
+      bg.remove();
+      toast(`اتنسخ في "${target.name?.ar || target.name?.en || ''}"`, 'success');
+      paintProducts(); paintCategories();
     }));
   }
 
