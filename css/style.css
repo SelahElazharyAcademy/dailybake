@@ -253,8 +253,21 @@ html[dir="rtl"] .ex-eg-drawer{animation-name:drawerInRtl;}
 }
 .ex-eg-tap-details svg{width:26px;height:26px;color:var(--text);animation:floaty 1.8s ease-in-out infinite;}
 .ex-eg-product-info{padding:10px 10px 12px;display:flex;flex-direction:column;gap:6px;flex:1;}
-.ex-eg-product-info .ex-eg-pname{font-size:13.5px;font-weight:700;line-height:1.3;min-height:2.4em;}
-.ex-eg-product-info .ex-eg-pprice{font-size:13.5px;font-weight:800;color:var(--primary);}
+.ex-eg-product-info .ex-eg-pname{font-size:13.5px;font-weight:700;line-height:1.3;}
+.ex-eg-product-info .ex-eg-pdesc{
+  font-size:11.5px;color:var(--muted);line-height:1.45;margin-top:-2px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+/* السعر وزرار الإضافة تحت خالص عشان الكروت تفضل متساوية مهما اختلف طول الاسم والوصف */
+.ex-eg-product-info .ex-eg-pfoot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:6px;}
+.ex-eg-product-info .ex-eg-pprice{font-size:13.5px;font-weight:800;color:var(--primary);min-width:0;}
+.ex-eg-quick-add{
+  flex:none;width:34px;height:34px;border-radius:50%;border:none;cursor:pointer;
+  background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 3px 8px rgba(242,103,34,.35);transition:transform .15s var(--ease);
+}
+.ex-eg-quick-add svg{width:18px;height:18px;}
+.ex-eg-quick-add:active{transform:scale(.88);}
 .ex-eg-product-info .ex-eg-pprice .ex-eg-old{color:var(--muted);text-decoration:line-through;font-weight:500;margin-inline-end:6px;font-size:12px;}
 .ex-eg-empty-state{padding:40px 16px;text-align:center;color:var(--muted);font-size:14px;}
 .ex-eg-empty-state svg{width:40px;height:40px;}

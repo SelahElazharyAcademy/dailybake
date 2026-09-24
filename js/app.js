@@ -624,11 +624,48 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
         </div>
         <div class="ex-eg-product-info">
           <div class="ex-eg-pname">${newTag(p)}${t(p.name)}</div>
-          <div class="ex-eg-pprice">${priceLabel(p)}</div>
+          ${t(p.description) ? `<div class="ex-eg-pdesc">${t(p.description)}</div>` : ''}
           ${ratingLine(p)}
+          <div class="ex-eg-pfoot">
+            <div class="ex-eg-pprice">${priceLabel(p)}</div>
+            <button type="button" class="ex-eg-quick-add" data-quick-add aria-label="${state.lang === 'ar' ? 'أضف للعربة' : 'Add to cart'}" title="${state.lang === 'ar' ? 'أضف للعربة' : 'Add to cart'}">${ICONS.plus}</button>
+          </div>
         </div>
       </div>
     `;
+  }
+
+  /* إضافة سريعة من الكارت من غير فتح المنتج. لو له أكتر من حجم لازم العميل يختار،
+     فبنفتح صفحة المنتج. الاستماع على مستوى الصفحة في مرحلة الـ capture عشان يسبق
+     ضغطة الكارت نفسه (اللي بتفتح التفاصيل) ويوقفها. */
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest && e.target.closest('[data-quick-add]');
+    if (!btn) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const card = btn.closest('.ex-eg-product-card');
+    const p = card && findProduct(Number(card.dataset.product));
+    if (!p) return;
+    if ((p.variants || []).length > 1) { openProduct(p); return; }
+    addProductToCart(p, 0, 1);
+  }, true);
+
+  function addProductToCart(p, variantIdx, qty) {
+    const variants = p.variants || [];
+    const d = activeDiscount(p);
+    const v = variants[variantIdx] || { price: 0, name: {} };
+    addToCart({
+      key: `${p.id}-${variantIdx}`,
+      productId: p.id,
+      name: p.name,
+      variantName: variants.length > 1 ? v.name : null,
+      price: discountedPrice(v.price, d),
+      originalPrice: d ? v.price : null,
+      image: p.image || DATA.fallbackProductImage,
+      qty,
+    });
+    flashCartAdded();
+    toast(state.lang === 'ar' ? 'اتضاف للعربة' : 'Added to cart', ICONS.cart);
   }
 
   // ---------------- overlays ----------------
@@ -703,20 +740,8 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
     overlay.querySelector('#qty-dec').addEventListener('click', () => { qty = Math.max(1, qty - 1); qtyVal.textContent = qty; });
     overlay.querySelector('#qty-inc').addEventListener('click', () => { qty = Math.min(99, qty + 1); qtyVal.textContent = qty; });
     overlay.querySelector('#add-cart').addEventListener('click', () => {
-      const v = variants[variantIdx] || { price: 0, name: {} };
-      addToCart({
-        key: `${p.id}-${variantIdx}`,
-        productId: p.id,
-        name: p.name,
-        variantName: variants.length > 1 ? v.name : null,
-        price: eff(v.price),
-        originalPrice: d ? v.price : null,
-        image: img,
-        qty,
-      });
       overlay.remove();
-      flashCartAdded();
-      toast(state.lang === 'ar' ? 'اتضاف للعربة' : 'Added to cart', ICONS.cart);
+      addProductToCart(p, variantIdx, qty);
     });
   }
 
