@@ -1,7 +1,7 @@
 import { ICONS } from './icons.js';
 import { addToCart, cartCount, openCartDrawer, openMyOrders, getMyOrders, watchMyOrders, syncCartPrices } from './cart.js';
 import { db, ref, push, set as fbSet, onValue, loadMenuFromFirebase, loadPublicSettings, ensureGuest } from './firebase-config.js';
-import { activeDiscount, discountedPrice, discountBadge, fmtDateShort } from './pricing.js';
+import { activeDiscount, discountedPrice, discountBadge, fmtDateShort, money } from './pricing.js';
 import { fitStyle, toDirectImageUrl } from './imageUtils.js';
 import { esc, safeUrl, safeTel } from './escape.js';
 import { DEFAULT_FEATURES, DEFAULT_FEEDBACK_FORM, EGYPT_GOVERNORATES } from './defaults.js';
@@ -117,7 +117,7 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
     if (!variants.length) return '';
     const d = activeDiscount(product);
     const cur = DATA.currencyCode;
-    const range = (arr) => { const min = Math.min(...arr), max = Math.max(...arr); return min === max ? `${cur} ${fmtPrice(min)}` : `${cur} ${fmtPrice(min)} - ${cur} ${fmtPrice(max)}`; };
+    const range = (arr) => { const min = Math.min(...arr), max = Math.max(...arr); return money(min === max ? fmtPrice(min) : `${fmtPrice(min)} - ${fmtPrice(max)}`, cur, state.lang); };
     const base = variants.map(v => v.price);
     if (!d) return range(base);
     return `<span class="ex-eg-old">${range(base)}</span>${range(base.map(p => discountedPrice(p, d)))}`;
@@ -663,20 +663,20 @@ import { loadAllRatings, watchRatings, myRating, rateProduct } from './ratings.j
           <h2>${newTag(p)}${t(p.name)}</h2>
           ${ratingWidget(p)}
           ${desc ? `<div class="ex-eg-desc">${desc}</div>` : ''}
-          ${d ? `<div class="ex-eg-disc-line">${ICONS.receipt}<span>${state.lang === 'ar' ? 'خصم' : 'Discount'} ${discountBadge(d, cur)}${d.label ? ` — ${d.label}` : ''}${d.until ? ` • ${state.lang === 'ar' ? 'حتى' : 'until'} ${fmtDateShort(d.until, state.lang)}` : ''}</span></div>` : ''}
+          ${d ? `<div class="ex-eg-disc-line">${ICONS.receipt}<span>${state.lang === 'ar' ? 'خصم' : 'Discount'} ${discountBadge(d, cur, state.lang)}${d.label ? ` — ${d.label}` : ''}${d.until ? ` • ${state.lang === 'ar' ? 'حتى' : 'until'} ${fmtDateShort(d.until, state.lang)}` : ''}</span></div>` : ''}
           ${variants.length > 1 ? `
             <div class="ex-eg-variant-picker">
               ${variants.map((v, i) => `
                 <button type="button" class="ex-eg-variant-chip ${i === 0 ? 'ex-eg-active' : ''}" data-i="${i}">
                   ${t(v.name) ? `<span>${t(v.name)}</span>` : ''}
-                  ${d ? `<span class="ex-eg-vc-old">${cur} ${fmtPrice(v.price)}</span>` : ''}
-                  <b>${cur} ${fmtPrice(eff(v.price))}</b>
+                  ${d ? `<span class="ex-eg-vc-old">${money(fmtPrice(v.price), cur, state.lang)}</span>` : ''}
+                  <b>${money(fmtPrice(eff(v.price)), cur, state.lang)}</b>
                 </button>
               `).join('')}
             </div>
           ` : variants.length === 1 ? `
             <div class="ex-eg-variant-row ex-eg-single">
-              <span class="ex-eg-price">${d ? `<span class="ex-eg-old-price">${cur} ${fmtPrice(variants[0].price)}</span>` : (variants[0].oldPrice ? `<span class="ex-eg-old-price">${cur} ${fmtPrice(variants[0].oldPrice)}</span>` : '')}${cur} ${fmtPrice(eff(variants[0].price))}</span>
+              <span class="ex-eg-price">${d ? `<span class="ex-eg-old-price">${money(fmtPrice(variants[0].price), cur, state.lang)}</span>` : (variants[0].oldPrice ? `<span class="ex-eg-old-price">${money(fmtPrice(variants[0].oldPrice), cur, state.lang)}</span>` : '')}${money(fmtPrice(eff(variants[0].price)), cur, state.lang)}</span>
             </div>
           ` : ''}
           <div class="ex-eg-add-to-cart-row">

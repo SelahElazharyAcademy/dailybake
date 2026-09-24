@@ -15,9 +15,18 @@ export function discountedPrice(price, d) {
   return Math.max(0, Math.round(p * (1 - Number(d.value) / 100) * 100) / 100);
 }
 
-export function discountBadge(d, currencyCode) {
+/* اسم العملة اللي بيظهر للعميل — بالعربي "جنيه مصري" بعد الرقم، وبالإنجليزي الكود قبله */
+const CURRENCY_AR = { EGP: 'جنيه مصري' };
+
+export function money(amount, currencyCode, lang = 'ar') {
+  const code = currencyCode || 'EGP';
+  if (lang === 'ar' && CURRENCY_AR[code]) return `${amount} ${CURRENCY_AR[code]}`;
+  return `${code} ${amount}`;
+}
+
+export function discountBadge(d, currencyCode, lang) {
   if (!d) return '';
-  return d.type === 'fixed' ? `-${Number(d.value)} ${currencyCode || ''}`.trim() : `-${Number(d.value)}%`;
+  return d.type === 'fixed' ? (lang ? `-${money(Number(d.value), currencyCode, lang)}` : `-${Number(d.value)} ${currencyCode || ''}`.trim()) : `-${Number(d.value)}%`;
 }
 
 export function fmtDateShort(ts, lang = 'ar') {

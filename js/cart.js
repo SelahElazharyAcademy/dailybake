@@ -6,6 +6,7 @@ import { db, ref, push, set, get, onValue } from './firebase-config.js';
 import { EGYPT_GOVERNORATES, DEFAULT_PAYMENTS, STATUS_LABELS, defaultGovernorateSettings, paymentInScope } from './defaults.js';
 import { compressImage } from './imageUtils.js';
 import { imgSrc, wireAssets } from './assets.js';
+import { money } from './pricing.js';
 
 const STORAGE_KEY = 'bakery_cart_v1';
 const MY_ORDERS_KEY = 'bakery_my_orders_v1';
@@ -116,7 +117,7 @@ const STR = {
   },
 };
 
-function fmt(n, code) { const isInt = Math.round(n) === n; return `${code} ${isInt ? Math.round(n) : n.toFixed(2)}`; }
+function fmt(n, code, lang) { const isInt = Math.round(n) === n; return money(isInt ? Math.round(n) : n.toFixed(2), code, lang); }
 /* الاسم الخام (للتخزين في الطلب) */
 function tNameRaw(obj, lang) { if (!obj) return ''; if (typeof obj === 'string') return obj; return obj[lang] || obj.ar || obj.en || ''; }
 /* الاسم المهرَّب (للعرض في HTML) */
@@ -152,7 +153,7 @@ export function openCartDrawer(ctx) {
               <img ${imgSrc(i.image)} alt="" loading="lazy">
               <div class="ex-eg-ci-info">
                 <div class="ex-eg-ci-name">${tName(i.name, lang)}${i.variantName ? ` <span class="ex-eg-ci-variant">(${tName(i.variantName, lang)})</span>` : ''}</div>
-                <div class="ex-eg-ci-price">${fmt(i.price, currencyCode)}</div>
+                <div class="ex-eg-ci-price">${fmt(i.price, currencyCode, lang)}</div>
               </div>
               <div class="ex-eg-qty-stepper">
                 <button class="ex-eg-qty-btn" data-act="dec">${ICONS.minus}</button>
@@ -163,7 +164,7 @@ export function openCartDrawer(ctx) {
             </div>
           `).join('')}
         </div>
-        <div class="ex-eg-cart-total-row"><span>${S.total}</span><span class="ex-eg-cart-total-val">${fmt(cartTotal(), currencyCode)}</span></div>
+        <div class="ex-eg-cart-total-row"><span>${S.total}</span><span class="ex-eg-cart-total-val">${fmt(cartTotal(), currencyCode, lang)}</span></div>
         <button class="ex-eg-checkout-btn" id="go-checkout">${S.checkout}</button>
       `}
     `);
@@ -246,9 +247,9 @@ function renderCheckout(ctx) {
   function renderSummary() {
     const sub = cartTotal(), fee = deliveryFee();
     q('#summary').innerHTML = `
-      <div class="ex-eg-summary-row"><span>${S.subtotal}</span><b>${fmt(sub, currencyCode)}</b></div>
-      ${fee ? `<div class="ex-eg-summary-row"><span>${S.deliveryFee}</span><b>${fmt(fee, currencyCode)}</b></div>` : ''}
-      <div class="ex-eg-cart-total-row"><span>${S.total}</span><span>${fmt(sub + fee, currencyCode)}</span></div>
+      <div class="ex-eg-summary-row"><span>${S.subtotal}</span><b>${fmt(sub, currencyCode, lang)}</b></div>
+      ${fee ? `<div class="ex-eg-summary-row"><span>${S.deliveryFee}</span><b>${fmt(fee, currencyCode, lang)}</b></div>` : ''}
+      <div class="ex-eg-cart-total-row"><span>${S.total}</span><span>${fmt(sub + fee, currencyCode, lang)}</span></div>
     `;
   }
 
@@ -364,7 +365,7 @@ function renderCheckout(ctx) {
 
   /* المحافظة بنفس شكل قائمة الفروع */
   function govLabel(g) { return lang === 'ar' ? g.ar : g.en; }
-  function govFee(g) { const fee = Number((govSettings[g.id] || {}).deliveryFee || 0); return fee ? `${lang === 'ar' ? 'رسوم التوصيل' : 'Delivery fee'}: ${fmt(fee, currencyCode)}` : (lang === 'ar' ? 'توصيل مجاني' : 'Free delivery'); }
+  function govFee(g) { const fee = Number((govSettings[g.id] || {}).deliveryFee || 0); return fee ? `${lang === 'ar' ? 'رسوم التوصيل' : 'Delivery fee'}: ${fmt(fee, currencyCode, lang)}` : (lang === 'ar' ? 'توصيل مجاني' : 'Free delivery'); }
   function govPicker() {
     const g = enabledGovs.find(x => x.id === govId) || enabledGovs[0];
     return `
@@ -669,9 +670,9 @@ export function openOrderTracking(orderId, ctx) {
     }
     overlay.querySelector('#track-items').innerHTML = `
       <div class="ex-eg-cart-items" style="padding:0;max-height:none;">
-        ${(order.items || []).map(i => `<div class="ex-eg-summary-row" style="padding:4px 0;"><span>${tName(i.name, lang)}${i.variantName ? ` (${tName(i.variantName, lang)})` : ''} × ${i.qty}</span><b>${fmt(i.price * i.qty, order.currencyCode)}</b></div>`).join('')}
+        ${(order.items || []).map(i => `<div class="ex-eg-summary-row" style="padding:4px 0;"><span>${tName(i.name, lang)}${i.variantName ? ` (${tName(i.variantName, lang)})` : ''} × ${i.qty}</span><b>${fmt(i.price * i.qty, order.currencyCode, lang)}</b></div>`).join('')}
       </div>
-      <div class="ex-eg-cart-total-row" style="padding:12px 0 0;"><span>${S.total}</span><span>${fmt(order.total, order.currencyCode)}</span></div>
+      <div class="ex-eg-cart-total-row" style="padding:12px 0 0;"><span>${S.total}</span><span>${fmt(order.total, order.currencyCode, lang)}</span></div>
     `;
   }
 
@@ -692,7 +693,7 @@ export function openMyOrders(ctx) {
     <div class="ex-eg-sheet-title">${S.myOrders}<button class="ex-eg-icon-btn ex-eg-ghost close-modal">${ICONS.close}</button></div>
     ${list.length ? `<div class="ex-eg-orders-list">${list.map(o => `
       <button class="ex-eg-order-mini" data-id="${o.id}">
-        <span><div class="ex-eg-om-id">#${shortId(o.id)}</div><div class="ex-eg-om-sub">${new Date(o.createdAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { dateStyle: 'short', timeStyle: 'short' })} • ${fmt(o.total, o.currencyCode)}</div></span>
+        <span><div class="ex-eg-om-id">#${shortId(o.id)}</div><div class="ex-eg-om-sub">${new Date(o.createdAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { dateStyle: 'short', timeStyle: 'short' })} • ${fmt(o.total, o.currencyCode, lang)}</div></span>
         <span class="ex-eg-status-pill ${o.status || 'new'}">${labels[o.status || 'new']}</span>
       </button>
     `).join('')}</div>` : `<div class="ex-eg-empty-state">${S.noOrders}</div>`}
